@@ -1,4 +1,4 @@
-use crate::{telemetry, Error, Metrics, Result, schedule::Schedule};
+use crate::{schedule::Schedule, telemetry, Error, Metrics, Result};
 
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -16,12 +16,21 @@ use kube::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::Arc;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::*;
 
 pub static DOCUMENT_FINALIZER: &str = "schedulepolicies.api.profisealabs.com";
+
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+pub enum LabelSelectorRequirementOperator {
+    In,
+    NotIn,
+    Exists,
+    DoesNotExist,
+}
 
 /// LabelSelectorRequirement is a selector that contains values, a key, and an operator that
 /// relates the key and values.
@@ -33,12 +42,27 @@ pub struct LabelSelectorRequirement {
     pub values: Option<Vec<String>>,
 }
 
+impl LabelSelectorRequirement {
+    pub fn to_label_selector(&self) -> String {
+        let mut selector = String::new();
+        selector.push_str(&self.key);
+        selector.push_str(" ");
+        selector.push_str(&self.operator.to_ascii_lowercase());
+        if let Some(values) = &self.values {
+            selector.push_str(" (");
+            selector.push_str(&values.join(","));
+            selector.push_str(")");
+        }
+        selector
+    }
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum NamespaceSelector {
     MatchNames(Vec<String>),
     MatchLabels(BTreeMap<String, String>),
-    // pub match_expressions: Vec<LabelSelectorRequirement>,
+    MatchExpressions(Vec<LabelSelectorRequirement>),
 }
 
 /// Generate the Kubernetes wrapper struct `SchedulePolicy` from our Spec and Status struct
@@ -107,7 +131,7 @@ async fn reconcile(doc: Arc<SchedulePolicy>, ctx: Arc<Context>) -> Result<Action
 fn error_policy(doc: Arc<SchedulePolicy>, error: &Error, ctx: Arc<Context>) -> Action {
     warn!("reconcile failed: {:?}", error);
     ctx.metrics.reconcile_failure(&*doc, error);
-    Action::requeue(Duration::from_secs(5 * 60))
+    Action::requeue(Duration::from_secs(30))
 }
 
 impl SchedulePolicy {
@@ -117,7 +141,12 @@ impl SchedulePolicy {
         let recorder = ctx.diagnostics.read().await.recorder(client.clone(), self);
         let ns = self.namespace().unwrap();
         let name = self.name_any();
-        let docs: Api<SchedulePolicy> = Api::namespaced(client, &ns);
+        let docs: Api<SchedulePolicy> = Api::namespaced(client.clone(), &ns);
+
+        match kubesitter::reconcile_policy_resources(client.clone(), self).await {
+            Err(err) => warn!("Failed to reconcile policy resources: {}", err),
+            Ok(()) => (),
+        }
 
         let should_suspend = self.spec.suspend;
         if !self.was_suspended() && should_suspend {
@@ -242,6 +271,98 @@ pub async fn run(state: State) {
         .filter_map(|x| async move { std::result::Result::ok(x) })
         .for_each(|_| futures::future::ready(()))
         .await;
+}
+
+mod kubesitter {
+    use regex::Regex;
+    use itertools::Itertools;
+    use k8s_openapi::api::core::v1::Namespace;
+    use kube::api::{Api, ListParams, ResourceExt};
+    use kube::core::ObjectList;
+
+    use super::*;
+
+    pub async fn reconcile_policy_resources(
+        client: Client,
+        policy: &SchedulePolicy,
+    ) -> Result<()> {
+
+        let namespaces = select_namespaces(client.clone(), &policy.spec.namespace_selector).await?;
+        let names = namespaces.items.iter().map(|ns| ns.name_any()).collect::<Vec<_>>();
+        info!(
+            "Found namespaces {} using selector {:?}",
+            names.join(","),
+            policy.spec.namespace_selector,
+        );
+
+        Ok(())
+    }
+
+    pub async fn select_namespaces(
+        client: Client,
+        selector: &NamespaceSelector,
+    ) -> Result<ObjectList<Namespace>> {
+        let mut name_patterns: Option<Vec<Regex>> = None;
+        let mut label_selector: Option<String> = None;
+
+        match selector {
+            NamespaceSelector::MatchNames(names) => {
+                let patterns = names
+                    .iter()
+                    .filter_map(|name| {
+                        match Regex::new(name) {
+                            Ok(re) => Some(re),
+                            Err(err) => {
+                                warn!("Skipping invalid regex for namespace name: {}", err);
+                                None
+                            },
+                        }
+                    }).collect::<Vec<_>>();
+                name_patterns = Some(patterns);
+            }
+            NamespaceSelector::MatchLabels(labels) => {
+                label_selector = Some(
+                    labels
+                        .iter()
+                        .map(|(key, value)| format!("{}={}", key, value))
+                        .join(","),
+                );
+            }
+            NamespaceSelector::MatchExpressions(exprs) => {
+                label_selector = Some(
+                    exprs
+                        .iter()
+                        .map(|expr| expr.to_label_selector())
+                        .join(","),
+                );
+            }
+        };
+
+        let namespaces: Api<Namespace> = Api::all(client);
+        let mut list_params: ListParams = ListParams::default();
+        if let Some(label_selector) = label_selector {
+            info!("Using label selector: {}", label_selector);
+            list_params = list_params.labels(&label_selector);
+        }
+
+        let mut namespaces: ObjectList<Namespace> =
+            namespaces.list(&list_params).await.map_err(Error::KubeError)?;
+        if let Some(name_patterns) = name_patterns {
+            namespaces
+                .items
+                .retain(|ns| {
+                    let name: String = ns.name_any();
+                    for re in &name_patterns {
+                        if re.is_match(&name) {
+                            return true;
+                        }
+                    }
+                    false
+                });
+        }
+
+        Ok(namespaces)
+    }
 }
 
 // Mock tests relying on fixtures.rs and its primitive apiserver mocks

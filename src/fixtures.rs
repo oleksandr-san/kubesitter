@@ -1,16 +1,15 @@
 //! Helper methods only available for tests
 use crate::{
-    Context, Metrics, Result, SchedulePolicy, SchedulePolicySpec, SchedulePolicyStatus, DOCUMENT_FINALIZER,
-    NamespaceSelector,
-    Schedule,
+    Context, Metrics, NamespaceSelector, Result, Schedule, SchedulePolicy, SchedulePolicySpec,
+    SchedulePolicyStatus, DOCUMENT_FINALIZER,
 };
 use assert_json_diff::assert_json_include;
+use chrono::{NaiveTime, Weekday};
 use http::{Request, Response};
 use hyper::{body::to_bytes, Body};
 use kube::{Client, Resource, ResourceExt};
 use prometheus::Registry;
 use std::sync::Arc;
-use chrono::{NaiveTime, Weekday};
 
 impl SchedulePolicy {
     /// A document that will cause the reconciler to fail
@@ -22,7 +21,13 @@ impl SchedulePolicy {
             schedule: Schedule::WorkTime {
                 start: NaiveTime::parse_from_str("9:00", "%H:%M").expect("valid time"),
                 stop: NaiveTime::parse_from_str("18:00", "%H:%M").expect("valid time"),
-                repeat: vec![Weekday::Mon, Weekday::Tue, Weekday::Wed, Weekday::Thu, Weekday::Fri],
+                repeat: vec![
+                    Weekday::Mon,
+                    Weekday::Tue,
+                    Weekday::Wed,
+                    Weekday::Thu,
+                    Weekday::Fri,
+                ],
             },
             time_zone: None,
         };
@@ -40,7 +45,13 @@ impl SchedulePolicy {
             schedule: Schedule::WorkTime {
                 start: chrono::NaiveTime::parse_from_str("9:00", "%H:%M").expect("valid time"),
                 stop: chrono::NaiveTime::parse_from_str("18:00", "%H:%M").expect("valid time"),
-                repeat: vec![Weekday::Mon, Weekday::Tue, Weekday::Wed, Weekday::Thu, Weekday::Fri],
+                repeat: vec![
+                    Weekday::Mon,
+                    Weekday::Tue,
+                    Weekday::Wed,
+                    Weekday::Thu,
+                    Weekday::Fri,
+                ],
             },
             time_zone: None,
         };
@@ -229,7 +240,10 @@ impl ApiServerVerifier {
         let json: serde_json::Value = serde_json::from_slice(&req_body).expect("patch_status object is json");
         let status_json = json.get("status").expect("status object").clone();
         let status: SchedulePolicyStatus = serde_json::from_value(status_json).expect("valid status");
-        assert_eq!(status.suspended, doc.spec.suspend, "status.suspended iff doc.spec.suspend");
+        assert_eq!(
+            status.suspended, doc.spec.suspend,
+            "status.suspended iff doc.spec.suspend"
+        );
         let response = serde_json::to_vec(&doc.with_status(status)).unwrap();
         // pass through document "patch accepted"
         send.send_response(Response::builder().body(Body::from(response)).unwrap());
