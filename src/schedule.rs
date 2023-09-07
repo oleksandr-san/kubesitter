@@ -15,7 +15,7 @@ pub enum Schedule {
 }
 
 pub fn convert_to_local_time<Tz: chrono::TimeZone>(
-    time: chrono::DateTime<Tz>,
+    time: &chrono::DateTime<Tz>,
     time_zone: &str,
 ) -> Result<chrono::NaiveDateTime, Error> {
     let tz: chrono_tz::Tz = time_zone.parse().map_err(Error::DeserializationError)?;
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn converts_to_local_time() {
         let now = chrono::DateTime::parse_from_rfc3339("2023-09-01T00:00:00Z").unwrap();
-        let now = super::convert_to_local_time(now, "Europe/Kyiv").unwrap();
+        let now = super::convert_to_local_time(&now, "Europe/Kyiv").unwrap();
         assert_eq!(
             now,
             chrono::NaiveDateTime::parse_from_str("2023-09-01T03:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()

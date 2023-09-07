@@ -23,7 +23,6 @@ use tracing::*;
 
 pub static DOCUMENT_FINALIZER: &str = "schedulepolicies.api.profisealabs.com";
 
-
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 pub enum LabelSelectorRequirementOperator {
     In,
@@ -273,27 +272,159 @@ pub async fn run(state: State) {
         .await;
 }
 
-mod kubesitter {
-    use regex::Regex;
+pub mod kubesitter {
     use itertools::Itertools;
+    use k8s_openapi::api::apps::v1::Deployment;
     use k8s_openapi::api::core::v1::Namespace;
+    use kube::core::object::HasSpec;
+    use regex::Regex;
+
     use kube::api::{Api, ListParams, ResourceExt};
     use kube::core::ObjectList;
+    use serde_json::Value;
+
+    use crate::schedule;
 
     use super::*;
 
-    pub async fn reconcile_policy_resources(
-        client: Client,
-        policy: &SchedulePolicy,
-    ) -> Result<()> {
+    const REPLICAS_ANNOTATION: &str = "cloudsitter.uniskai.com/original-replicas";
 
+    pub async fn reconcile_policy_resources(client: Client, policy: &SchedulePolicy) -> Result<()> {
         let namespaces = select_namespaces(client.clone(), &policy.spec.namespace_selector).await?;
-        let names = namespaces.items.iter().map(|ns| ns.name_any()).collect::<Vec<_>>();
+        let names = namespaces
+            .items
+            .iter()
+            .map(|ns| ns.name_any())
+            .collect::<Vec<_>>();
         info!(
             "Found namespaces {} using selector {:?}",
             names.join(","),
             policy.spec.namespace_selector,
         );
+
+        let current_time = Utc::now();
+        let current_time = if let Some(tz) = &policy.spec().time_zone {
+            schedule::convert_to_local_time(&current_time, tz)?
+        } else {
+            current_time.naive_utc()
+        };
+
+        let desired_state = schedule::determine_desired_state(&policy.spec().schedule, &current_time)?;
+        let tasks = names
+            .into_iter()
+            .map(|ns| reconcile_namespaced_resources(client.clone(), ns, desired_state))
+            .collect::<Vec<_>>();
+        futures::future::join_all(tasks).await;
+
+        Ok(())
+    }
+
+    fn generate_deployment_patch(deploy: &Deployment, desired_state: bool) -> Option<Patch<Value>> {
+        if desired_state {
+            let Some(original_replicas) = deploy.annotations().get(REPLICAS_ANNOTATION) else {
+                warn!(
+                    "Skipping deployment {} in namespace {} because it does not have the {} annotation",
+                    deploy.name_any(),
+                    deploy.namespace().unwrap(),
+                    REPLICAS_ANNOTATION,
+                );
+                return None;
+            };
+            let Ok(original_replicas) = original_replicas.parse::<i32>() else {
+                warn!(
+                    "Skipping deployment {} in namespace {} because the {} annotation is not an integer",
+                    deploy.name_any(),
+                    deploy.namespace().unwrap(),
+                    REPLICAS_ANNOTATION,
+                );
+                return None;
+            };
+
+            let patch: Patch<Value> = Patch::Apply(json!({
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {
+                    "annotations": {
+                        // REPLICAS_ANNOTATION: null,
+                    },
+                },
+                "spec": {
+                    "replicas": original_replicas,
+                }
+            }));
+            Some(patch)
+        } else {
+            let current_replicas = deploy.spec.as_ref()?.replicas?;
+            if current_replicas == 0 {
+                info!(
+                    "Skipping deployment {} in namespace {} because it is already scaled to 0",
+                    deploy.name_any(),
+                    deploy.namespace().unwrap(),
+                );
+                return None;
+            }
+
+            let patch: Patch<Value> = Patch::Apply(json!({
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {
+                    "annotations": {
+                        REPLICAS_ANNOTATION: current_replicas.to_string(),
+                    },
+                },
+                "spec": {
+                    "replicas": 0,
+                }
+            }));
+            Some(patch)
+        }
+    }
+
+    pub async fn reconcile_namespaced_resources(
+        client: Client,
+        namespace: String,
+        desired_state: bool,
+    ) -> Result<()> {
+        let ps = PatchParams::apply("cntrlr").force();
+        let deployments: Api<Deployment> = Api::namespaced(client.clone(), &namespace);
+
+        for deploy in deployments
+            .list(&ListParams::default())
+            .await
+            .map_err(Error::KubeError)?
+        {
+            if let Some(patch) = generate_deployment_patch(&deploy, desired_state) {
+                info!(
+                    "Patching deployment {} in namespace {}: {:?}",
+                    deploy.name_any(),
+                    deploy.namespace().unwrap(),
+                    patch,
+                );
+                match deployments.patch(&deploy.name_any(), &ps, &patch).await {
+                    Ok(_) => {
+                        info!(
+                            "Successfully patched deployment {} in namespace {}",
+                            deploy.name_any(),
+                            deploy.namespace().unwrap(),
+                        );
+                    }
+                    Err(err) => {
+                        warn!(
+                            "Failed to patch deployment {} in namespace {}: {}",
+                            deploy.name_any(),
+                            deploy.namespace().unwrap(),
+                            err,
+                        );
+                    }
+                }
+            } else {
+                info!(
+                    "No need to patch deployment {} in namespace {}",
+                    deploy.name_any(),
+                    deploy.namespace().unwrap(),
+                );
+            }
+        }
 
         Ok(())
     }
@@ -309,15 +440,14 @@ mod kubesitter {
             NamespaceSelector::MatchNames(names) => {
                 let patterns = names
                     .iter()
-                    .filter_map(|name| {
-                        match Regex::new(name) {
-                            Ok(re) => Some(re),
-                            Err(err) => {
-                                warn!("Skipping invalid regex for namespace name: {}", err);
-                                None
-                            },
+                    .filter_map(|name| match Regex::new(name) {
+                        Ok(re) => Some(re),
+                        Err(err) => {
+                            warn!("Skipping invalid regex for namespace name: {}", err);
+                            None
                         }
-                    }).collect::<Vec<_>>();
+                    })
+                    .collect::<Vec<_>>();
                 name_patterns = Some(patterns);
             }
             NamespaceSelector::MatchLabels(labels) => {
@@ -329,12 +459,7 @@ mod kubesitter {
                 );
             }
             NamespaceSelector::MatchExpressions(exprs) => {
-                label_selector = Some(
-                    exprs
-                        .iter()
-                        .map(|expr| expr.to_label_selector())
-                        .join(","),
-                );
+                label_selector = Some(exprs.iter().map(|expr| expr.to_label_selector()).join(","));
             }
         };
 
@@ -348,17 +473,15 @@ mod kubesitter {
         let mut namespaces: ObjectList<Namespace> =
             namespaces.list(&list_params).await.map_err(Error::KubeError)?;
         if let Some(name_patterns) = name_patterns {
-            namespaces
-                .items
-                .retain(|ns| {
-                    let name: String = ns.name_any();
-                    for re in &name_patterns {
-                        if re.is_match(&name) {
-                            return true;
-                        }
+            namespaces.items.retain(|ns| {
+                let name: String = ns.name_any();
+                for re in &name_patterns {
+                    if re.is_match(&name) {
+                        return true;
                     }
-                    false
-                });
+                }
+                false
+            });
         }
 
         Ok(namespaces)
