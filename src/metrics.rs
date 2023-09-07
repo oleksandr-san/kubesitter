@@ -1,4 +1,4 @@
-use crate::{Error, SchedulePolicy};
+use crate::Error;
 use kube::ResourceExt;
 use prometheus::{histogram_opts, opts, HistogramVec, IntCounter, IntCounterVec, Registry};
 use tokio::time::Instant;
@@ -48,9 +48,12 @@ impl Metrics {
         Ok(self)
     }
 
-    pub fn reconcile_failure(&self, doc: &SchedulePolicy, e: &Error) {
+    pub fn reconcile_failure<R: ResourceExt>(&self, resource: &R, e: &Error) {
         self.failures
-            .with_label_values(&[doc.name_any().as_ref(), e.metric_label().as_ref()])
+            .with_label_values(&[
+                resource.name_any().as_ref(),
+                e.metric_label().as_ref()
+            ])
             .inc()
     }
 

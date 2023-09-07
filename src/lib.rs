@@ -13,6 +13,9 @@ pub enum Error {
     // so boxing this error to break cycles
     FinalizerError(#[source] Box<kube::runtime::finalizer::Error<Error>>),
 
+    #[error("DeserializationError: {0}")]
+    DeserializationError(String),
+
     #[error("IllegalResource")]
     IllegalResource,
 }
@@ -26,7 +29,9 @@ impl Error {
 
 /// Expose all controller components used by main
 pub mod controller;
+pub mod schedule;
 pub use crate::controller::*;
+pub use crate::schedule::*;
 
 /// Log and trace integrations
 pub mod telemetry;

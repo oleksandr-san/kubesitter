@@ -10,6 +10,7 @@ use hyper::{body::to_bytes, Body};
 use kube::{Client, Resource, ResourceExt};
 use prometheus::Registry;
 use std::sync::Arc;
+use chrono::{NaiveTime, Weekday};
 
 impl SchedulePolicy {
     /// A document that will cause the reconciler to fail
@@ -18,7 +19,11 @@ impl SchedulePolicy {
             title: "test".into(),
             suspend: false,
             namespace_selector: NamespaceSelector::MatchNames(Vec::new()),
-            schedule: Schedule::WorkTime { start: "9:00".into(), stop: "18:00".into(), repeat: "Mon-Fri".into() },
+            schedule: Schedule::WorkTime {
+                start: NaiveTime::parse_from_str("9:00", "%H:%M").expect("valid time"),
+                stop: NaiveTime::parse_from_str("18:00", "%H:%M").expect("valid time"),
+                repeat: vec![Weekday::Mon, Weekday::Tue, Weekday::Wed, Weekday::Thu, Weekday::Fri],
+            },
             time_zone: None,
         };
         let mut d = SchedulePolicy::new("illegal", spec);
@@ -32,7 +37,11 @@ impl SchedulePolicy {
             title: "test".into(),
             suspend: false,
             namespace_selector: NamespaceSelector::MatchNames(Vec::new()),
-            schedule: Schedule::WorkTime { start: "9:00".into(), stop: "18:00".into(), repeat: "Mon-Fri".into() },
+            schedule: Schedule::WorkTime {
+                start: chrono::NaiveTime::parse_from_str("9:00", "%H:%M").expect("valid time"),
+                stop: chrono::NaiveTime::parse_from_str("18:00", "%H:%M").expect("valid time"),
+                repeat: vec![Weekday::Mon, Weekday::Tue, Weekday::Wed, Weekday::Thu, Weekday::Fri],
+            },
             time_zone: None,
         };
         let mut d = SchedulePolicy::new("test", spec);
@@ -139,7 +148,8 @@ impl ApiServerVerifier {
         assert_eq!(
             request.uri().to_string(),
             format!(
-                "/apis/api.profisealabs.com/v1/namespaces/default/schedulepolicies/{}?",
+                "/apis/{}/namespaces/default/schedulepolicies/{}?",
+                SchedulePolicy::api_version(&()),
                 doc.name_any()
             )
         );
@@ -164,7 +174,8 @@ impl ApiServerVerifier {
         assert_eq!(
             request.uri().to_string(),
             format!(
-                "/apis/api.profisealabs.com/v1/namespaces/default/schedulepolicies/{}?",
+                "/apis/{}/namespaces/default/schedulepolicies/{}?",
+                SchedulePolicy::api_version(&()),
                 doc.name_any()
             )
         );
@@ -209,7 +220,8 @@ impl ApiServerVerifier {
         assert_eq!(
             request.uri().to_string(),
             format!(
-                "/apis/api.profisealabs.com/v1/namespaces/default/schedulepolicies/{}/status?&force=true&fieldManager=cntrlr",
+                "/apis/{}/namespaces/default/schedulepolicies/{}/status?&force=true&fieldManager=cntrlr",
+                SchedulePolicy::api_version(&()),
                 doc.name_any()
             )
         );

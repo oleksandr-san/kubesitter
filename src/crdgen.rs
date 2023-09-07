@@ -1,6 +1,5 @@
-use kube::{CustomResourceExt, Resource};
+use kube::CustomResourceExt;
 fn main() {
-    print!("{}", controller::SchedulePolicy::api_version(&()));
     print!(
         "{}",
         serde_yaml::to_string(&controller::SchedulePolicy::crd()).unwrap()

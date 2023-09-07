@@ -1,4 +1,5 @@
-use crate::{telemetry, Error, Metrics, Result};
+use crate::{telemetry, Error, Metrics, Result, schedule::Schedule};
+
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use kube::{
@@ -16,6 +17,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use std::collections::BTreeMap;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::*;
 
@@ -35,18 +37,8 @@ pub struct LabelSelectorRequirement {
 #[serde(rename_all = "camelCase")]
 pub enum NamespaceSelector {
     MatchNames(Vec<String>),
-    MatchLabels(std::collections::BTreeMap<String, String>),
+    MatchLabels(BTreeMap<String, String>),
     // pub match_expressions: Vec<LabelSelectorRequirement>,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum Schedule {
-    WorkTime {
-        start: String,
-        stop: String,
-        repeat: String,
-    },
 }
 
 /// Generate the Kubernetes wrapper struct `SchedulePolicy` from our Spec and Status struct
@@ -57,7 +49,7 @@ pub enum Schedule {
 #[kube(
     kind = "SchedulePolicy",
     group = "api.profisealabs.com",
-    version = "v1",
+    version = "v1alpha",
     namespaced
 )]
 #[kube(status = "SchedulePolicyStatus", shortname = "schedule")]
@@ -114,7 +106,7 @@ async fn reconcile(doc: Arc<SchedulePolicy>, ctx: Arc<Context>) -> Result<Action
 
 fn error_policy(doc: Arc<SchedulePolicy>, error: &Error, ctx: Arc<Context>) -> Action {
     warn!("reconcile failed: {:?}", error);
-    ctx.metrics.reconcile_failure(&doc, error);
+    ctx.metrics.reconcile_failure(&*doc, error);
     Action::requeue(Duration::from_secs(5 * 60))
 }
 
@@ -161,7 +153,7 @@ impl SchedulePolicy {
             .map_err(Error::KubeError)?;
 
         // If no events were received, check back every 5 minutes
-        Ok(Action::requeue(Duration::from_secs(5 * 60)))
+        Ok(Action::requeue(Duration::from_secs(30)))
     }
 
     // Finalizer cleanup (the object was deleted, ensure nothing is orphaned)
@@ -194,7 +186,7 @@ impl Default for Diagnostics {
     fn default() -> Self {
         Self {
             last_event: Utc::now(),
-            reporter: "doc-controller".into(),
+            reporter: "schedulepolicy-controller".into(),
         }
     }
 }
