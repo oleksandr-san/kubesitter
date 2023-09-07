@@ -13,8 +13,8 @@ pub enum Error {
     // so boxing this error to break cycles
     FinalizerError(#[source] Box<kube::runtime::finalizer::Error<Error>>),
 
-    #[error("IllegalDocument")]
-    IllegalDocument,
+    #[error("IllegalResource")]
+    IllegalResource,
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -35,4 +35,5 @@ pub mod telemetry;
 mod metrics;
 pub use metrics::Metrics;
 
-#[cfg(test)] pub mod fixtures;
+#[cfg(test)]
+pub mod fixtures;
