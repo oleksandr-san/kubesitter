@@ -104,6 +104,6 @@ mod tests {
     fn converts_to_local_time() {
         let now = chrono::DateTime::parse_from_rfc3339("2023-09-01T00:00:00Z").unwrap();
         let now = super::convert_to_local_time(now, "Europe/Kyiv").unwrap();
-        assert_eq!(now, chrono::NaiveDateTime::parse_from_str("2023-09-01T02:00:00", "%Y-%m-%dT%H:%M:%S").unwrap());
+        assert_eq!(now, chrono::NaiveDateTime::parse_from_str("2023-09-01T03:00:00", "%Y-%m-%dT%H:%M:%S").unwrap());
     }
 }
