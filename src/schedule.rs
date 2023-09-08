@@ -26,11 +26,9 @@ pub fn determine_desired_state(schedule: &Schedule, now: &chrono::NaiveDateTime)
     match schedule {
         Schedule::WorkTime { start, stop, repeat } => {
             let time_now = now.time();
-            let start = start.clone();
-            let stop = stop.clone();
             let repeat = repeat.clone();
             let desired_state = if repeat.contains(&now.weekday()) {
-                time_now >= start && time_now <= stop
+                time_now >= *start && time_now <= *stop
             } else {
                 false
             };

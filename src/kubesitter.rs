@@ -26,7 +26,7 @@ async fn main() {
     println!("Namespaces: {:?}", namespace_names);
 
     let client = kube::Client::try_default().await.unwrap();
-    kubesitter::reconcile_namespaced_resources(client, &namespace_names[0], desired_state)
+    kubesitter::reconcile_namespace(client, namespace_names[0].clone(), desired_state)
         .await
         .unwrap();
 }

@@ -545,6 +545,7 @@ dependencies = [
  "itertools 0.11.0",
  "k8s-openapi",
  "kube",
+ "once_cell",
  "opentelemetry",
  "opentelemetry-otlp",
  "prometheus",
