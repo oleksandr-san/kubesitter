@@ -1,7 +1,7 @@
 [package]
 name = "controller"
-version = "0.12.10"
-authors = ["clux <sszynrae@gmail.com>"]
+version = "0.1.2"
+authors = ["Oleksandr <oleksandr.an@profisealabs.com>"]
 edition = "2021"
 default-run = "controller"
 license = "Apache-2.0"

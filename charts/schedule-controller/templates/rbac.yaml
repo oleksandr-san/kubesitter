@@ -20,12 +20,21 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "controller.fullname" . }}
 rules:
-  - apiGroups: ["kube.rs"]
-    resources: ["documents", "documents/status"]
+  - apiGroups: ["api.profisealabs.com"]
+    resources: ["schedulepolicies", "schedulepolicies/status"]
     verbs: ["get", "list", "watch", "patch"]
   - apiGroups: ["events.k8s.io"]
     resources: ["events"]
     verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list", "get"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "daemonsets", "statefulsets"]
+    verbs: ["list", "get", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["list", "get", "patch"]
 
 ---
 # Binding the role to the account
