@@ -1,6 +1,9 @@
 //! Helper methods only available for tests
 use crate::{
-    Context, Metrics, NamespaceSelector, Result, Schedule, SchedulePolicy, SchedulePolicySpec,
+    Context, Metrics, Result,
+    Schedule, WorkTime,
+    NamespaceSelector,
+    SchedulePolicy, SchedulePolicySpec,
     SchedulePolicyStatus, DOCUMENT_FINALIZER,
 };
 use assert_json_diff::assert_json_include;
@@ -18,17 +21,19 @@ impl SchedulePolicy {
             title: "test".into(),
             suspend: false,
             namespace_selector: NamespaceSelector::MatchNames(Vec::new()),
-            schedule: Schedule::WorkTime {
-                start: NaiveTime::parse_from_str("9:00", "%H:%M").expect("valid time"),
-                stop: NaiveTime::parse_from_str("18:00", "%H:%M").expect("valid time"),
-                repeat: vec![
-                    Weekday::Mon,
-                    Weekday::Tue,
-                    Weekday::Wed,
-                    Weekday::Thu,
-                    Weekday::Fri,
-                ],
-            },
+            schedule: Schedule::WorkTimes(vec![
+                WorkTime {
+                    start: NaiveTime::parse_from_str("9:00", "%H:%M").expect("valid time"),
+                    stop: NaiveTime::parse_from_str("18:00", "%H:%M").expect("valid time"),
+                    days: vec![
+                        Weekday::Mon,
+                        Weekday::Tue,
+                        Weekday::Wed,
+                        Weekday::Thu,
+                        Weekday::Fri,
+                    ],
+                }
+            ]),
             time_zone: None,
         };
         let mut d = SchedulePolicy::new("illegal", spec);
@@ -42,17 +47,19 @@ impl SchedulePolicy {
             title: "test".into(),
             suspend: false,
             namespace_selector: NamespaceSelector::MatchNames(Vec::new()),
-            schedule: Schedule::WorkTime {
-                start: chrono::NaiveTime::parse_from_str("9:00", "%H:%M").expect("valid time"),
-                stop: chrono::NaiveTime::parse_from_str("18:00", "%H:%M").expect("valid time"),
-                repeat: vec![
-                    Weekday::Mon,
-                    Weekday::Tue,
-                    Weekday::Wed,
-                    Weekday::Thu,
-                    Weekday::Fri,
-                ],
-            },
+            schedule: Schedule::WorkTimes(vec![
+                WorkTime {
+                    start: NaiveTime::parse_from_str("9:00", "%H:%M").expect("valid time"),
+                    stop: NaiveTime::parse_from_str("18:00", "%H:%M").expect("valid time"),
+                    days: vec![
+                        Weekday::Mon,
+                        Weekday::Tue,
+                        Weekday::Wed,
+                        Weekday::Thu,
+                        Weekday::Fri,
+                    ],
+                }
+            ]),
             time_zone: None,
         };
         let mut d = SchedulePolicy::new("test", spec);

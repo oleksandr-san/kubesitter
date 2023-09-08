@@ -1,6 +1,6 @@
 replicaCount: 1
 nameOverride: ""
-namespace: "default"
+namespace: "uniskai"
 version: "" # pin a specific version
 
 image:

@@ -1,16 +1,16 @@
 apiVersion: api.profisealabs.com/v1alpha
 kind: SchedulePolicy
 metadata:
-  name: match-labels-schedule-policy
+  name: match-names
   labels:
     purpose: example
 spec:
   suspend: false
-  title: "A schedule policy matching labels"
+  title: "A schedule policy matching name by regex"
 
   namespaceSelector:
-    matchLabels:
-      project: emojivoto
+    matchNames:
+      - bookin.*
 
   timeZone: "Europe/Kyiv"
 

@@ -6,12 +6,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkTime {
+    pub start: chrono::NaiveTime,
+    pub stop: chrono::NaiveTime,
+    pub days: Vec<chrono::Weekday>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub enum Schedule {
-    WorkTime {
-        start: chrono::NaiveTime,
-        stop: chrono::NaiveTime,
-        repeat: Vec<chrono::Weekday>,
-    },
+    WorkTimes(Vec<WorkTime>),
 }
 
 pub fn convert_to_local_time<Tz: chrono::TimeZone>(
@@ -24,14 +28,13 @@ pub fn convert_to_local_time<Tz: chrono::TimeZone>(
 
 pub fn determine_desired_state(schedule: &Schedule, now: &chrono::NaiveDateTime) -> Result<bool, Error> {
     match schedule {
-        Schedule::WorkTime { start, stop, repeat } => {
-            let time_now = now.time();
-            let repeat = repeat.clone();
-            let desired_state = if repeat.contains(&now.weekday()) {
-                time_now >= *start && time_now <= *stop
-            } else {
-                false
-            };
+        Schedule::WorkTimes(times) => {
+            let weekday = now.weekday();
+            let now = now.time();
+
+            let desired_state = times.iter().any(|time| {
+                time.days.contains(&weekday) && time.start <= now && time.stop >= now
+            });
             Ok(desired_state)
         }
     }
@@ -44,20 +47,22 @@ mod tests {
     #[test]
     fn parses_work_time() {
         let schedule = r#"{
-            "workTime": {
+            "workTimes": [{
                 "start": "08:00:00",
                 "stop": "17:00:00",
-                "repeat": ["Mon", "Tue", "Wed", "Thu", "Fri"]
-            }
+                "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+            }]
         }
         "#;
         let schedule: super::Schedule = serde_json::from_str(schedule).unwrap();
         match schedule {
-            super::Schedule::WorkTime { start, stop, repeat } => {
-                assert_eq!(start, NaiveTime::parse_from_str("8:00", "%H:%M").unwrap());
-                assert_eq!(stop, NaiveTime::parse_from_str("17:00", "%H:%M").unwrap());
+            super::Schedule::WorkTimes(times) => {
+                assert_eq!(times.len(), 1);
+                let super::WorkTime { start, stop, days } = &times[0];
+                assert_eq!(*start, NaiveTime::parse_from_str("8:00", "%H:%M").unwrap());
+                assert_eq!(*stop, NaiveTime::parse_from_str("17:00", "%H:%M").unwrap());
                 assert_eq!(
-                    repeat,
+                    *days,
                     vec![
                         Weekday::Mon,
                         Weekday::Tue,
@@ -73,11 +78,11 @@ mod tests {
     #[test]
     fn determines_desired_state() {
         let schedule = r#"{
-            "workTime": {
+            "workTimes": [{
                 "start": "08:00:00",
                 "stop": "17:00:00",
-                "repeat": ["Mon", "Tue", "Wed", "Thu", "Fri"]
-            }
+                "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+            }]
         }
         "#;
         let schedule: super::Schedule = serde_json::from_str(schedule).unwrap();
