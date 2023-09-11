@@ -32,9 +32,9 @@ pub fn determine_desired_state(schedule: &Schedule, now: &chrono::NaiveDateTime)
             let weekday = now.weekday();
             let now = now.time();
 
-            let desired_state = times.iter().any(|time| {
-                time.days.contains(&weekday) && time.start <= now && time.stop >= now
-            });
+            let desired_state = times
+                .iter()
+                .any(|time| time.days.contains(&weekday) && time.start <= now && time.stop >= now);
             Ok(desired_state)
         }
     }
@@ -94,6 +94,32 @@ mod tests {
             ("2023-09-01T16:59:59", true),
             ("2023-09-01T17:00:00", true),
             ("2023-09-01T17:00:01", false),
+        ] {
+            let now = chrono::NaiveDateTime::parse_from_str(now, "%Y-%m-%dT%H:%M:%S").unwrap();
+            let desired_state = super::determine_desired_state(&schedule, &now).unwrap();
+            assert_eq!(desired_state, expected_desired_state, "now: {}", now);
+        }
+    }
+
+    #[test]
+    fn determines_awlways_on_state() {
+        let schedule = r#"{
+            "workTimes": [{
+                "start": "00:00:00",
+                "stop": "23:59:59",
+                "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            }]
+        }
+        "#;
+        let schedule: super::Schedule = serde_json::from_str(schedule).unwrap();
+
+        for (now, expected_desired_state) in vec![
+            ("2023-09-01T00:00:00", true),
+            ("2023-09-03T00:00:00", true),
+            ("2023-09-04T00:00:00", true),
+            ("2023-09-01T23:59:59", true),
+            ("2023-09-01T01:00:00", true),
+            ("2023-09-01T12:00:00", true),
         ] {
             let now = chrono::NaiveDateTime::parse_from_str(now, "%Y-%m-%dT%H:%M:%S").unwrap();
             let desired_state = super::determine_desired_state(&schedule, &now).unwrap();

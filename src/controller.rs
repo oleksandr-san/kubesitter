@@ -84,6 +84,7 @@ pub struct SchedulePolicySpec {
     pub schedule: Schedule,
     pub time_zone: Option<String>,
 }
+
 /// The status object of `SchedulePolicy`
 #[derive(Deserialize, Serialize, Clone, Default, Debug, JsonSchema)]
 pub struct SchedulePolicyStatus {
