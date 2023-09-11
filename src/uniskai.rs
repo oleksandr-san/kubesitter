@@ -120,8 +120,8 @@ fn convert_to_work_times(periods: &Vec<bool>) -> Result<Vec<WorkTime>, Error> {
     let mut work_times: Vec<WorkTime> = Vec::new();
 
     'outer: for (start, stop) in ranges.iter() {
-        let day =
-            chrono::Weekday::try_from(u8::try_from(*start / day_length).expect("Failed to convert day"))?;
+        let day = u8::try_from(*start / day_length).expect("Failed to convert index to u8");
+        let day = chrono::Weekday::try_from(day).expect("Failed to convert index to weekday");
 
         let start = chrono::NaiveTime::MIN
             + period_duration * i32::try_from(*start % day_length).expect("Failed to convert start");

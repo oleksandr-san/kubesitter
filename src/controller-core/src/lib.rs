@@ -19,6 +19,7 @@ pub enum Error {
     #[error("IllegalResource")]
     IllegalResource,
 }
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl Error {
@@ -27,18 +28,9 @@ impl Error {
     }
 }
 
-/// Expose all controller components used by main
-pub mod controller;
-pub mod schedule;
-pub use crate::controller::*;
-pub use crate::schedule::*;
-
 /// Log and trace integrations
 pub mod telemetry;
 
 /// Metrics
 mod metrics;
 pub use metrics::Metrics;
-
-#[cfg(test)]
-pub mod fixtures;

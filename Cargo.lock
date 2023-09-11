@@ -531,8 +531,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "controller"
-version = "0.1.2"
+name = "controller-core"
+version = "0.0.1"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -2094,6 +2094,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "schedule-agent"
+version = "0.0.1"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "controller-core",
+ "prometheus",
+ "schedule-controller",
+ "tokio",
+]
+
+[[package]]
+name = "schedule-controller"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "assert-json-diff",
+ "chrono",
+ "chrono-tz",
+ "controller-core",
+ "futures",
+ "http",
+ "hyper",
+ "itertools 0.11.0",
+ "k8s-openapi",
+ "kube",
+ "once_cell",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "prometheus",
+ "regex",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tower-test",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "uniskai-sdk",
+]
+
+[[package]]
 name = "schemars"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2791,6 +2838,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c5713f0fc4b5db668a2ac63cdb7bb4469d8c9fed047b1d0292cc7b0ce2ba921"
 dependencies = [
  "tinyvec",
+]
+
+[[package]]
+name = "uniskai-sdk"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "reqwest",
+ "serde",
 ]
 
 [[package]]

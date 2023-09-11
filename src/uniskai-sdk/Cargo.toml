@@ -1,0 +1,16 @@
+[package]
+name = "uniskai-sdk"
+version = "0.0.1"
+authors = ["Oleksandr <oleksandr.an@profisealabs.com>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "uniskai_sdk"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0.185", features = ["derive"] }
+reqwest = "0.11.20"
+chrono = { version = "0.4.26", features = ["serde"] }

@@ -1,5 +1,6 @@
 #![allow(unused_imports, unused_variables)]
-pub use controller::{self, controller::kubesitter, telemetry};
+use controller_core::telemetry;
+use schedule_controller::{self, kubesitter};
 
 #[tokio::main]
 async fn main() {

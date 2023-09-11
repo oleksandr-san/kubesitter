@@ -1,0 +1,15 @@
+[package]
+name = "schedule-agent"
+version = "0.0.1"
+authors = ["Oleksandr <oleksandr.an@profisealabs.com>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+controller-core = { path = "../controller-core" }
+schedule-controller = { path = "../schedule-controller" }
+actix-web = "4.3.1"
+prometheus = "0.13.3"
+tokio = { version = "1.32.0", features = ["macros", "rt-multi-thread"] }
+anyhow = "1.0.75"

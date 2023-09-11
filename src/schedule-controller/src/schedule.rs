@@ -1,4 +1,4 @@
-use crate::Error;
+use controller_core::Error;
 
 use chrono::Datelike;
 use schemars::JsonSchema;

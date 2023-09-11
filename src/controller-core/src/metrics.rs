@@ -14,7 +14,7 @@ impl Default for Metrics {
     fn default() -> Self {
         let reconcile_duration = HistogramVec::new(
             histogram_opts!(
-                "doc_controller_reconcile_duration_seconds",
+                "controller_reconcile_duration_seconds",
                 "The duration of reconcile to complete in seconds"
             )
             .buckets(vec![0.01, 0.1, 0.25, 0.5, 1., 5., 15., 60.]),
@@ -22,15 +22,11 @@ impl Default for Metrics {
         )
         .unwrap();
         let failures = IntCounterVec::new(
-            opts!(
-                "doc_controller_reconciliation_errors_total",
-                "reconciliation errors",
-            ),
+            opts!("controller_reconciliation_errors_total", "reconciliation errors",),
             &["instance", "error"],
         )
         .unwrap();
-        let reconciliations =
-            IntCounter::new("doc_controller_reconciliations_total", "reconciliations").unwrap();
+        let reconciliations = IntCounter::new("controller_reconciliations_total", "reconciliations").unwrap();
         Metrics {
             reconciliations,
             failures,

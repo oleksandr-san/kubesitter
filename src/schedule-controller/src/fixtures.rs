@@ -1,10 +1,12 @@
 //! Helper methods only available for tests
+
 use crate::{
-    Context, Metrics, NamespaceSelector, Result, Schedule, SchedulePolicy, SchedulePolicySpec,
-    SchedulePolicyStatus, WorkTime, DOCUMENT_FINALIZER,
+    Context, NamespaceSelector, Schedule, SchedulePolicy, SchedulePolicySpec, SchedulePolicyStatus, WorkTime,
+    DOCUMENT_FINALIZER,
 };
 use assert_json_diff::assert_json_include;
 use chrono::{NaiveTime, Weekday};
+use controller_core::{Metrics, Result};
 use http::{Request, Response};
 use hyper::{body::to_bytes, Body};
 use kube::{Client, Resource, ResourceExt};
