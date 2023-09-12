@@ -1,5 +1,5 @@
 use crate::kubesitter;
-use crate::schedule::Schedule;
+use crate::model::{SchedulePolicy, SchedulePolicyStatus, POLICY_FINALIZER};
 
 use controller_core::{telemetry, Error, Metrics, Result};
 
@@ -14,91 +14,13 @@ use kube::{
         finalizer::{finalizer, Event as Finalizer},
         watcher::Config,
     },
-    CustomResource, Resource,
+    Resource,
 };
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::*;
-
-pub static DOCUMENT_FINALIZER: &str = "schedulepolicies.api.profisealabs.com";
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-pub enum LabelSelectorRequirementOperator {
-    In,
-    NotIn,
-    Exists,
-    DoesNotExist,
-}
-
-/// LabelSelectorRequirement is a selector that contains values, a key, and an operator that
-/// relates the key and values.
-/// Valid operators are In, NotIn, Exists and DoesNotExist.
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-pub struct LabelSelectorRequirement {
-    pub key: String,
-    pub operator: String,
-    pub values: Option<Vec<String>>,
-}
-
-impl LabelSelectorRequirement {
-    pub fn to_label_selector(&self) -> String {
-        let mut selector = String::new();
-        selector.push_str(&self.key);
-        selector.push(' ');
-        selector.push_str(&self.operator.to_ascii_lowercase());
-        if let Some(values) = &self.values {
-            selector.push_str(" (");
-            selector.push_str(&values.join(","));
-            selector.push(')');
-        }
-        selector
-    }
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum NamespaceSelector {
-    MatchNames(Vec<String>),
-    MatchLabels(BTreeMap<String, String>),
-    MatchExpressions(Vec<LabelSelectorRequirement>),
-}
-
-/// Generate the Kubernetes wrapper struct `SchedulePolicy` from our Spec and Status struct
-///
-/// This provides a hook for generating the CRD yaml (in crdgen.rs)
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
-// #[cfg_attr(test, derive(Default))]
-#[kube(
-    kind = "SchedulePolicy",
-    group = "api.profisealabs.com",
-    version = "v1alpha",
-    namespaced
-)]
-#[kube(status = "SchedulePolicyStatus", shortname = "schedule")]
-#[serde(rename_all = "camelCase")]
-pub struct SchedulePolicySpec {
-    pub title: String,
-    pub suspend: bool,
-    pub namespace_selector: NamespaceSelector,
-    pub schedule: Schedule,
-    pub time_zone: Option<String>,
-}
-
-/// The status object of `SchedulePolicy`
-#[derive(Deserialize, Serialize, Clone, Default, Debug, JsonSchema)]
-pub struct SchedulePolicyStatus {
-    pub suspended: bool,
-}
-
-impl SchedulePolicy {
-    fn was_suspended(&self) -> bool {
-        self.status.as_ref().map(|s| s.suspended).unwrap_or(false)
-    }
-}
 
 // Context for our reconciler
 #[derive(Clone)]
@@ -117,11 +39,12 @@ async fn reconcile(doc: Arc<SchedulePolicy>, ctx: Arc<Context>) -> Result<Action
     Span::current().record("trace_id", &field::display(&trace_id));
     let _timer = ctx.metrics.count_and_measure();
     ctx.diagnostics.write().await.last_event = Utc::now();
+
     let ns = doc.namespace().unwrap(); // doc is namespace scoped
     let docs: Api<SchedulePolicy> = Api::namespaced(ctx.client.clone(), &ns);
 
     info!("Reconciling SchedulePolicy \"{}\" in {}", doc.name_any(), ns);
-    finalizer(&docs, DOCUMENT_FINALIZER, doc, |event| async {
+    finalizer(&docs, POLICY_FINALIZER, doc, |event| async {
         match event {
             Finalizer::Apply(doc) => doc.reconcile(ctx.clone()).await,
             Finalizer::Cleanup(doc) => doc.cleanup(ctx.clone()).await,

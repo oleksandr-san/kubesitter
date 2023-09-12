@@ -1,8 +1,11 @@
 //! Helper methods only available for tests
 
 use crate::{
-    Context, NamespaceSelector, Schedule, SchedulePolicy, SchedulePolicySpec, SchedulePolicyStatus, WorkTime,
-    DOCUMENT_FINALIZER,
+    model::{
+        NamespaceSelector, Schedule, SchedulePolicy, SchedulePolicySpec, SchedulePolicyStatus, WorkTime,
+        POLICY_FINALIZER as DOCUMENT_FINALIZER,
+    },
+    Context,
 };
 use assert_json_diff::assert_json_include;
 use chrono::{NaiveTime, Weekday};

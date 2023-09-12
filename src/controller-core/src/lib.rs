@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -13,8 +14,8 @@ pub enum Error {
     // so boxing this error to break cycles
     FinalizerError(#[source] Box<kube::runtime::finalizer::Error<Error>>),
 
-    #[error("DeserializationError: {0}")]
-    DeserializationError(String),
+    #[error("InvalidParameters: {0}")]
+    InvalidParameters(Cow<'static, str>),
 
     #[error("IllegalResource")]
     IllegalResource,
