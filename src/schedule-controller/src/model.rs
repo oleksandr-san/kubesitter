@@ -26,7 +26,7 @@ impl ToString for RequirementOperator {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct LabelSelectorRequirement {
     pub key: String,
     pub operator: RequirementOperator,
@@ -55,7 +55,7 @@ impl LabelSelectorRequirement {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum NamespaceSelector {
     /// MatchNames is a list of namespace name regex patterns.
@@ -72,7 +72,7 @@ pub enum NamespaceSelector {
     MatchExpressions(Vec<LabelSelectorRequirement>),
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkTime {
     pub start: chrono::NaiveTime,
@@ -80,7 +80,7 @@ pub struct WorkTime {
     pub days: Vec<chrono::Weekday>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum Schedule {
     WorkTimes(Vec<WorkTime>),
@@ -89,7 +89,7 @@ pub enum Schedule {
 /// Generate the Kubernetes wrapper struct `SchedulePolicy` from our Spec and Status struct
 ///
 /// This provides a hook for generating the CRD yaml (in crdgen.rs)
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
     kind = "SchedulePolicy",
     group = "api.profisealabs.com",
@@ -189,10 +189,10 @@ fn convert_to_work_times(periods: &Vec<bool>) -> Result<Vec<WorkTime>, Error> {
     Ok(work_times)
 }
 
-impl TryFrom<CloudsitterPolicy> for SchedulePolicySpec {
+impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
     type Error = Error;
 
-    fn try_from(policy: CloudsitterPolicy) -> Result<Self, Self::Error> {
+    fn try_from(policy: &CloudsitterPolicy) -> Result<Self, Self::Error> {
         let work_times = convert_to_work_times(&policy.schedules.hours)?;
         let schedule = Schedule::WorkTimes(work_times);
 

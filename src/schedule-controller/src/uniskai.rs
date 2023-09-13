@@ -1,8 +1,15 @@
+use crate::model::{SchedulePolicy, SchedulePolicySpec};
+use uniskai_sdk::{CloudsitterPolicy, UniskaiClient};
+
+use kube::{
+    runtime::reflector,
+    api::{Api, Patch, PatchParams},
+    Client as KubeClient,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::*;
-use uniskai_sdk::UniskaiClient;
 
 struct ConnectionStateInner {
     connected: bool,
@@ -32,18 +39,33 @@ impl ConnectionState {
 }
 
 pub struct UniskaiController {
+    kube_client: KubeClient,
     uniskai_client: UniskaiClient,
     check_interval: std::time::Duration,
     connection_state: ConnectionState,
+    schedules_namespace: String,
+    schedules_store: Option<reflector::Store<SchedulePolicy>>,
 }
 
 impl UniskaiController {
-    pub fn new(uniskai_client: UniskaiClient, check_interval: std::time::Duration) -> Self {
+    pub fn new(
+        kube_client: KubeClient,
+        uniskai_client: UniskaiClient,
+        check_interval: std::time::Duration,
+    ) -> Self {
         Self {
+            kube_client,
             uniskai_client,
             check_interval,
             connection_state: ConnectionState::new(),
+            schedules_namespace: "uniskai".to_string(),
+            schedules_store: None,
         }
+    }
+
+    pub fn with_schedules_store(mut self, schedules_store: reflector::Store<SchedulePolicy>) -> Self {
+        self.schedules_store = Some(schedules_store);
+        self
     }
 
     pub fn connection_state(&self) -> &ConnectionState {
@@ -65,7 +87,7 @@ impl UniskaiController {
                     error_count += 1;
                     if error_count > 5 {
                         self.connection_state.set_connected(false).await;
-                        println!("Error listing policies: {}", e);
+                        error!("Error listing policies: {}", e);
                         return Err(Box::new(e));
                     }
                     error!("Error listing policies: {}", e);
@@ -81,16 +103,62 @@ impl UniskaiController {
                         let existing_policy_json = serde_json::to_string(existing_policy)?;
                         let policy_json = serde_json::to_string(&policy)?;
                         let mismatch = json_diff::compare_jsons(&existing_policy_json, &policy_json);
-                        println!("Policy {} changed: {:?}", policy.name, mismatch);
+                        info!("Policy {} changed: {:?}", policy.name, mismatch);
+
+                        match self.reconcile_policy(&policy).await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                error!("Error reconciling policy: {}", err);
+                                continue;
+                            }
+                        };
                         store.insert(policy.id, policy);
                     }
                 } else {
-                    println!("New policy: {}", policy.name);
+                    info!("New policy: {}", policy.name);
+                    match self.reconcile_policy(&policy).await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error!("Error reconciling policy: {}", err);
+                            continue;
+                        }
+                    };
                     store.insert(policy.id, policy);
                 }
             }
 
             tokio::time::sleep(self.check_interval).await;
         }
+    }
+
+    async fn reconcile_policy(&self, policy: &CloudsitterPolicy) -> Result<(), Box<dyn std::error::Error>> {
+        info!("Reconciling policy: {}", policy.name);
+
+        let schedule_api: Api<SchedulePolicy> =
+            Api::namespaced(self.kube_client.clone(), &self.schedules_namespace);
+        let resource_name = policy.name.replace(" ", "-").to_lowercase();
+        let schedule = SchedulePolicySpec::try_from(policy)?;
+        let existing_schedule = if let Some(schedules_store) = &self.schedules_store {
+            let key = reflector::ObjectRef::new(&resource_name).within(&self.schedules_namespace);
+            schedules_store.get(&key)
+        } else if let Some(existing_schedule) = schedule_api.get_opt(&resource_name).await? {
+            Some(Arc::new(existing_schedule))
+        } else {
+            None
+        };
+    
+        if let Some(existing_schedule) = existing_schedule {
+            if existing_schedule.spec == schedule {
+                info!("Schedule {} is up to date", resource_name);
+                return Ok(());
+            }
+        }
+
+        info!("Applying schedule {}", resource_name);
+        let ssapply = PatchParams::apply("uniskai-controller").force();
+        let schedule = SchedulePolicy::new(&resource_name, schedule);
+        let _ = schedule_api.patch(&resource_name, &ssapply, &Patch::Apply(&schedule)).await?;
+
+        Ok(())
     }
 }
