@@ -2,8 +2,8 @@ use crate::model::{SchedulePolicy, SchedulePolicySpec};
 use uniskai_sdk::{CloudsitterPolicy, UniskaiClient};
 
 use kube::{
-    runtime::reflector,
     api::{Api, Patch, PatchParams},
+    runtime::reflector,
     Client as KubeClient,
 };
 use std::collections::HashMap;
@@ -146,7 +146,7 @@ impl UniskaiController {
         } else {
             None
         };
-    
+
         if let Some(existing_schedule) = existing_schedule {
             if existing_schedule.spec == schedule {
                 info!("Schedule {} is up to date", resource_name);
@@ -157,7 +157,9 @@ impl UniskaiController {
         info!("Applying schedule {}", resource_name);
         let ssapply = PatchParams::apply("uniskai-controller").force();
         let schedule = SchedulePolicy::new(&resource_name, schedule);
-        let _ = schedule_api.patch(&resource_name, &ssapply, &Patch::Apply(&schedule)).await?;
+        let _ = schedule_api
+            .patch(&resource_name, &ssapply, &Patch::Apply(&schedule))
+            .await?;
 
         Ok(())
     }

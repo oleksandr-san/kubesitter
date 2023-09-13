@@ -26,11 +26,11 @@ async fn main() {
 
         let kube_client = kube::Client::try_default().await.unwrap();
         let client = UniskaiClient::new(api_key, env_id);
-        let controller =
-            schedule_controller::uniskai::UniskaiController::new(
-                kube_client,
-                client,
-                std::time::Duration::from_secs(5));
+        let controller = schedule_controller::uniskai::UniskaiController::new(
+            kube_client,
+            client,
+            std::time::Duration::from_secs(5),
+        );
         controller.run().await.unwrap();
     } else if command == "kubesit" {
         let desired_state = match args.next() {
