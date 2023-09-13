@@ -84,25 +84,25 @@ The sample web server exposes some example metrics and debug information you can
 ```sh
 $ kubectl apply -f yaml/instance-lorem.yaml
 $ curl 0.0.0.0:8080/metrics
-# HELP doc_controller_reconcile_duration_seconds The duration of reconcile to complete in seconds
-# TYPE doc_controller_reconcile_duration_seconds histogram
-doc_controller_reconcile_duration_seconds_bucket{le="0.01"} 1
-doc_controller_reconcile_duration_seconds_bucket{le="0.1"} 1
-doc_controller_reconcile_duration_seconds_bucket{le="0.25"} 1
-doc_controller_reconcile_duration_seconds_bucket{le="0.5"} 1
-doc_controller_reconcile_duration_seconds_bucket{le="1"} 1
-doc_controller_reconcile_duration_seconds_bucket{le="5"} 1
-doc_controller_reconcile_duration_seconds_bucket{le="15"} 1
-doc_controller_reconcile_duration_seconds_bucket{le="60"} 1
-doc_controller_reconcile_duration_seconds_bucket{le="+Inf"} 1
-doc_controller_reconcile_duration_seconds_sum 0.013
-doc_controller_reconcile_duration_seconds_count 1
-# HELP doc_controller_reconciliation_errors_total reconciliation errors
-# TYPE doc_controller_reconciliation_errors_total counter
-doc_controller_reconciliation_errors_total 0
-# HELP doc_controller_reconciliations_total reconciliations
-# TYPE doc_controller_reconciliations_total counter
-doc_controller_reconciliations_total 1
+# HELP controller_reconcile_duration_seconds The duration of reconcile to complete in seconds
+# TYPE controller_reconcile_duration_seconds histogram
+controller_reconcile_duration_seconds_bucket{le="0.01"} 1
+controller_reconcile_duration_seconds_bucket{le="0.1"} 1
+controller_reconcile_duration_seconds_bucket{le="0.25"} 1
+controller_reconcile_duration_seconds_bucket{le="0.5"} 1
+controller_reconcile_duration_seconds_bucket{le="1"} 1
+controller_reconcile_duration_seconds_bucket{le="5"} 1
+controller_reconcile_duration_seconds_bucket{le="15"} 1
+controller_reconcile_duration_seconds_bucket{le="60"} 1
+controller_reconcile_duration_seconds_bucket{le="+Inf"} 1
+controller_reconcile_duration_seconds_sum 0.013
+controller_reconcile_duration_seconds_count 1
+# HELP controller_reconciliation_errors_total reconciliation errors
+# TYPE controller_reconciliation_errors_total counter
+controller_reconciliation_errors_total 0
+# HELP controller_reconciliations_total reconciliations
+# TYPE controller_reconciliations_total counter
+controller_reconciliations_total 1
 $ curl 0.0.0.0:8080/
 {"last_event":"2019-07-17T22:31:37.591320068Z"}
 ```

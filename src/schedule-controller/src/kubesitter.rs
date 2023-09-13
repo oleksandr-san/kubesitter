@@ -1,4 +1,4 @@
-use crate::model::{NamespaceSelector, Schedule, SchedulePolicy};
+use crate::model::{NamespaceSelector, Schedule, SchedulePolicy, LabelSelectorRequirement};
 use controller_core::{Error, Result};
 
 use chrono::Datelike;
@@ -568,7 +568,7 @@ pub async fn select_namespaces(
             );
         }
         NamespaceSelector::MatchExpressions(exprs) => {
-            label_selector = Some(exprs.iter().map(|expr| expr.to_label_selector()).join(","));
+            label_selector = Some(exprs.iter().map(LabelSelectorRequirement::to_label_selector).join(","));
         }
     };
 
@@ -599,6 +599,7 @@ pub async fn select_namespaces(
 #[cfg(test)]
 mod tests {
     use chrono::{NaiveTime, Weekday};
+    use crate::model::WorkTime;
 
     #[test]
     fn parses_work_time() {
@@ -614,7 +615,7 @@ mod tests {
         match schedule {
             super::Schedule::WorkTimes(times) => {
                 assert_eq!(times.len(), 1);
-                let super::WorkTime { start, stop, days } = &times[0];
+                let WorkTime { start, stop, days } = &times[0];
                 assert_eq!(*start, NaiveTime::parse_from_str("8:00", "%H:%M").unwrap());
                 assert_eq!(*stop, NaiveTime::parse_from_str("17:00", "%H:%M").unwrap());
                 assert_eq!(

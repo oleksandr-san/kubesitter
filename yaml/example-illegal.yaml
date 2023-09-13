@@ -19,3 +19,8 @@ spec:
       - start: 07:00:00
         stop: 18:00:00
         days: [Mon, Tue, Wed, Thu, Fri]
+      - start: 08:00:00
+        stop: 09:00:00
+        days: [Sat, Sun]
+        name: "Weekend"
+

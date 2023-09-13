@@ -99,21 +99,21 @@ impl UniskaiController {
                 if let Some(existing_policy) = store.get(&policy.id) {
                     if existing_policy == &policy {
                         continue;
-                    } else {
-                        let existing_policy_json = serde_json::to_string(existing_policy)?;
-                        let policy_json = serde_json::to_string(&policy)?;
-                        let mismatch = json_diff::compare_jsons(&existing_policy_json, &policy_json);
-                        info!("Policy {} changed: {:?}", policy.name, mismatch);
-
-                        match self.reconcile_policy(&policy).await {
-                            Ok(_) => {}
-                            Err(err) => {
-                                error!("Error reconciling policy: {}", err);
-                                continue;
-                            }
-                        };
-                        store.insert(policy.id, policy);
                     }
+
+                    let existing_policy_json = serde_json::to_string(existing_policy)?;
+                    let policy_json = serde_json::to_string(&policy)?;
+                    let mismatch = json_diff::compare_jsons(&existing_policy_json, &policy_json);
+                    info!("Policy {} changed: {:?}", policy.name, mismatch);
+
+                    match self.reconcile_policy(&policy).await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error!("Error reconciling policy: {}", err);
+                            continue;
+                        }
+                    };
+                    store.insert(policy.id, policy);
                 } else {
                     info!("New policy: {}", policy.name);
                     match self.reconcile_policy(&policy).await {
@@ -136,15 +136,13 @@ impl UniskaiController {
 
         let schedule_api: Api<SchedulePolicy> =
             Api::namespaced(self.kube_client.clone(), &self.schedules_namespace);
-        let resource_name = policy.name.replace(" ", "-").to_lowercase();
+        let resource_name = policy.name.replace(' ', "-").to_lowercase();
         let schedule = SchedulePolicySpec::try_from(policy)?;
         let existing_schedule = if let Some(schedules_store) = &self.schedules_store {
             let key = reflector::ObjectRef::new(&resource_name).within(&self.schedules_namespace);
             schedules_store.get(&key)
-        } else if let Some(existing_schedule) = schedule_api.get_opt(&resource_name).await? {
-            Some(Arc::new(existing_schedule))
         } else {
-            None
+            schedule_api.get_opt(&resource_name).await?.map(Arc::new)
         };
 
         if let Some(existing_schedule) = existing_schedule {

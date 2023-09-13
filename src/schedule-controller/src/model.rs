@@ -114,7 +114,7 @@ pub struct SchedulePolicyStatus {
 
 impl SchedulePolicy {
     pub fn was_suspended(&self) -> bool {
-        self.status.as_ref().map(|s| s.suspended).unwrap_or(false)
+        self.status.as_ref().map_or(false, |s| s.suspended)
     }
 }
 
@@ -159,7 +159,7 @@ fn convert_to_work_times(periods: &Vec<bool>) -> Result<Vec<WorkTime>, Error> {
 
     let mut work_times: Vec<WorkTime> = Vec::new();
 
-    'outer: for (start, stop) in ranges.iter() {
+    'outer: for (start, stop) in &ranges {
         let day = u8::try_from(*start / day_length).expect("Failed to convert index to u8");
         let day = chrono::Weekday::try_from(day).expect("Failed to convert index to weekday");
 

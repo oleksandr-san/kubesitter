@@ -47,7 +47,7 @@ impl Metrics {
     pub fn reconcile_failure<R: ResourceExt>(&self, resource: &R, e: &Error) {
         self.failures
             .with_label_values(&[resource.name_any().as_ref(), e.metric_label().as_ref()])
-            .inc()
+            .inc();
     }
 
     pub fn count_and_measure(&self) -> ReconcileMeasurer {
