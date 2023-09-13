@@ -1,10 +1,11 @@
+use controller_core::Error;
+use uniskai_sdk::{cloudsitter::CloudsitterPolicy, NAMESPACE_TYPES};
+
+use k8s_openapi::{api::core::v1::Namespace, Resource};
 use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-
-use controller_core::Error;
-use uniskai_sdk::{cloudsitter::CloudsitterPolicy, NAMESPACE_TYPES};
 
 pub static POLICY_FINALIZER: &str = "schedulepolicies.api.profisealabs.com";
 
@@ -72,6 +73,43 @@ pub enum NamespaceSelector {
     MatchExpressions(Vec<LabelSelectorRequirement>),
 }
 
+#[derive(Deserialize, Serialize, Copy, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum AssignmentType {
+    Skip,
+    Work,
+    Sleep,
+}
+
+fn v1() -> String {
+    Namespace::API_VERSION.to_string()
+}
+
+fn namespace() -> String {
+    Namespace::KIND.to_string()
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceReference {
+    #[serde(default = "v1")]
+    pub api_version: String,
+    #[serde(default = "namespace")]
+    pub kind: String,
+    pub name: String,
+    pub namespace: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Assignment {
+    #[serde(rename = "type")]
+    pub ty: AssignmentType,
+    pub from: Option<chrono::DateTime<chrono::Utc>>,
+    pub to: Option<chrono::DateTime<chrono::Utc>>,
+    pub resource_references: Vec<ResourceReference>,
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkTime {
@@ -86,9 +124,10 @@ pub enum Schedule {
     WorkTimes(Vec<WorkTime>),
 }
 
-/// Generate the Kubernetes wrapper struct `SchedulePolicy` from our Spec and Status struct
-///
-/// This provides a hook for generating the CRD yaml (in crdgen.rs)
+/// `SchedulePoicy` allows to define a schedule for a set of namespaces.
+/// The schedule is defined by a set of `WorkTime` objects.
+/// The `SchedulePolicy` object is applied to namespaces that match the `NamespaceSelector`.
+/// The `SchedulePolicy` object can be suspended by setting the `suspend` field to `true`.
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
     kind = "SchedulePolicy",
@@ -103,6 +142,7 @@ pub struct SchedulePolicySpec {
     pub suspend: bool,
     pub namespace_selector: NamespaceSelector,
     pub schedule: Schedule,
+    pub assignments: Option<Vec<Assignment>>,
     pub time_zone: Option<String>,
 }
 
@@ -110,6 +150,38 @@ pub struct SchedulePolicySpec {
 #[derive(Deserialize, Serialize, Clone, Default, Debug, JsonSchema)]
 pub struct SchedulePolicyStatus {
     pub suspended: bool,
+}
+
+impl Assignment {
+    pub fn is_active_at(&self, timestamp: &chrono::DateTime<chrono::Utc>) -> bool {
+        let from_condition = match &self.from {
+            Some(from_time) => timestamp >= from_time,
+            None => true,
+        };
+        let to_condition = match &self.to {
+            Some(to_time) => timestamp <= to_time,
+            None => true,
+        };
+        from_condition && to_condition
+    }
+}
+
+impl ResourceReference {
+    pub fn new_namespace(name: &str) -> Self {
+        Self {
+            api_version: v1(),
+            kind: namespace(),
+            name: name.to_string(),
+            namespace: None,
+        }
+    }
+
+    pub fn matches(&self, other: &ResourceReference) -> bool {
+        self.kind.eq_ignore_ascii_case(&other.kind)
+            && self.api_version.eq_ignore_ascii_case(&other.api_version)
+            && self.name == other.name
+            && self.namespace == other.namespace
+    }
 }
 
 impl SchedulePolicy {
@@ -195,15 +267,30 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
     fn try_from(policy: &CloudsitterPolicy) -> Result<Self, Self::Error> {
         let work_times = convert_to_work_times(&policy.schedules.hours)?;
         let schedule = Schedule::WorkTimes(work_times);
-
+        let mut assignments = Vec::new();
         let mut namespace_names = Vec::new();
+
         for resource in &policy.resources {
             if NAMESPACE_TYPES.contains(&resource.ty.as_str()) {
-                if let Some(name) = resource.identification.name() {
-                    namespace_names.push(name.to_string());
-                }
+                let Some(name) = resource.identification.name() else { continue };
+                namespace_names.push(name.to_string());
 
-                // TODO: handle pause_from and pause_to
+                if resource.pause_from.is_some() || resource.pause_to.is_some() {
+                    // TODO: Get assignment type from resource.
+                    // For now we assume the most popular use case: wake up the namespace.
+                    let assignment = Assignment {
+                        ty: AssignmentType::Work,
+                        from: resource.pause_from,
+                        to: resource.pause_to,
+                        resource_references: vec![ResourceReference {
+                            api_version: Namespace::API_VERSION.to_string(),
+                            kind: Namespace::KIND.to_string(),
+                            name: name.to_string(),
+                            namespace: None,
+                        }],
+                    };
+                    assignments.push(assignment);
+                }
             }
         }
 
@@ -213,6 +300,7 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
             time_zone: Some(policy.timezone.clone()),
             namespace_selector: NamespaceSelector::MatchNames(namespace_names),
             schedule,
+            assignments: Some(assignments),
         };
         Ok(spec)
     }

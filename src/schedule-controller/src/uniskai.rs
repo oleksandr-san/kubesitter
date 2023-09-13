@@ -38,6 +38,12 @@ impl ConnectionState {
     }
 }
 
+impl Default for ConnectionState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct UniskaiController {
     kube_client: KubeClient,
     uniskai_client: UniskaiClient,

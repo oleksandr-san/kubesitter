@@ -35,6 +35,7 @@ impl SchedulePolicy {
                 ],
             }]),
             time_zone: None,
+            assignments: None,
         };
         let mut d = SchedulePolicy::new("illegal", spec);
         d.meta_mut().namespace = Some("default".into());
@@ -59,6 +60,7 @@ impl SchedulePolicy {
                 ],
             }]),
             time_zone: None,
+            assignments: None,
         };
         let mut d = SchedulePolicy::new("test", spec);
         d.meta_mut().namespace = Some("default".into());

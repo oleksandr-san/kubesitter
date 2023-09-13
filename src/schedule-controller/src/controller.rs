@@ -69,9 +69,8 @@ impl SchedulePolicy {
         let name = self.name_any();
         let docs: Api<SchedulePolicy> = Api::namespaced(client.clone(), &ns);
 
-        match kubesitter::reconcile_policy_resources(client.clone(), self).await {
-            Err(err) => warn!("Failed to reconcile policy resources: {}", err),
-            Ok(()) => (),
+        if let Err(err) = kubesitter::reconcile_policy_resources(client.clone(), self).await {
+            warn!("Failed to reconcile policy resources: {}", err);
         }
 
         let should_suspend = self.spec.suspend;

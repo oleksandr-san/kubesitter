@@ -38,6 +38,7 @@ async fn init_tracer() -> opentelemetry::sdk::trace::Tracer {
 }
 
 /// Initialize tracing
+#[allow(clippy::unused_async)]
 pub async fn init() {
     // Setup tracing layers
     #[cfg(feature = "telemetry")]

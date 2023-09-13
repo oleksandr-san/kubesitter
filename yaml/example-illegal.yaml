@@ -14,7 +14,14 @@ spec:
 
   timeZone: "Europe/Kyiv"
 
-  schedule:
+  assignments:
+    - type: work
+      from: "2019-01-01T00:00:00Z"
+      to: "2019-01-01T23:59:59Z"
+      resourceReferences:
+        - name: emojivoto
+
+  schedule:      
     workTimes:
       - start: 07:00:00
         stop: 18:00:00

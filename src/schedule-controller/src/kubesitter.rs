@@ -1,4 +1,7 @@
-use crate::model::{NamespaceSelector, Schedule, SchedulePolicy, LabelSelectorRequirement};
+use crate::model::{
+    Assignment, AssignmentType, LabelSelectorRequirement, NamespaceSelector, ResourceReference, Schedule,
+    SchedulePolicy,
+};
 use controller_core::{Error, Result};
 
 use chrono::Datelike;
@@ -23,7 +26,7 @@ use serde_json::json;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
-use tracing::*;
+use tracing::{debug, info, warn};
 
 const REPLICAS_ANNOTATION: &str = "cloudsitter.uniskai.com/original-replicas";
 const SUSPENDED_ANNOTATION: &str = "cloudsitter.uniskai.com/is-suspended";
@@ -38,53 +41,108 @@ static DEAMONSET_SLEEPING_NODE_SELECTOR: Lazy<BTreeMap<String, String>> = Lazy::
 
 pub fn convert_to_local_time<Tz: chrono::TimeZone>(
     time: &chrono::DateTime<Tz>,
-    time_zone: &str,
+    time_zone: Option<&String>,
 ) -> Result<chrono::NaiveDateTime, Error> {
-    let tz: chrono_tz::Tz = time_zone
-        .parse()
-        .map_err(|err| Error::InvalidParameters(format!("{}", err).into()))?;
-    Ok(time.with_timezone(&tz).naive_local())
+    if let Some(time_zone) = time_zone {
+        let time_zone: chrono_tz::Tz = time_zone
+            .parse()
+            .map_err(|err: chrono_tz::ParseError| Error::InvalidParameters(err.into()))?;
+        Ok(time.with_timezone(&time_zone).naive_local())
+    } else {
+        Ok(time.naive_utc())
+    }
 }
 
-pub fn determine_desired_state(schedule: &Schedule, now: &chrono::NaiveDateTime) -> Result<bool, Error> {
+pub fn determine_schedule_state(schedule: &Schedule, now: &chrono::NaiveDateTime) -> Result<bool, Error> {
     match schedule {
         Schedule::WorkTimes(times) => {
             let weekday = now.weekday();
             let now = now.time();
 
-            let desired_state = times
+            let state = times
                 .iter()
                 .any(|time| time.days.contains(&weekday) && time.start <= now && time.stop >= now);
-            Ok(desired_state)
+            Ok(state)
         }
+    }
+}
+
+pub fn determine_assignment_type(
+    resource: &ResourceReference,
+    assignments: Option<&Vec<Assignment>>,
+    current_time: &chrono::DateTime<chrono::Utc>,
+    schedule_state: bool,
+) -> AssignmentType {
+    let mut assignments = assignments
+        .map(|assignments| {
+            assignments
+                .iter()
+                .filter(|assignment| assignment.is_active_at(current_time))
+                .filter(|assignment| {
+                    assignment
+                        .resource_references
+                        .iter()
+                        .any(|ref_| ref_.matches(resource))
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    if assignments.len() > 1 {
+        warn!(
+            "Found {} active assignments for resource {:?}",
+            assignments.len(),
+            resource,
+        );
+    }
+
+    if let Some(assignment) = assignments.pop() {
+        info!(
+            "Found assigned state resource {:?}: {:?}",
+            assignment.ty, resource,
+        );
+        assignment.ty
+    } else if schedule_state {
+        AssignmentType::Work
+    } else {
+        AssignmentType::Sleep
     }
 }
 
 pub async fn reconcile_policy_resources(client: Client, policy: &SchedulePolicy) -> Result<()> {
     let namespaces = select_namespaces(client.clone(), &policy.spec.namespace_selector).await?;
-    let names = namespaces
-        .items
-        .iter()
-        .map(|ns| ns.name_any())
-        .collect::<Vec<_>>();
     info!(
-        "Found namespaces {} using selector {:?}",
-        names.join(","),
+        "Selected {} namespaces using selector {:?}",
+        namespaces.items.len(),
         policy.spec.namespace_selector,
     );
 
-    let current_time = chrono::Utc::now();
-    let current_time = if let Some(tz) = &policy.spec().time_zone {
-        convert_to_local_time(&current_time, tz)?
-    } else {
-        current_time.naive_utc()
-    };
+    let policy_spec = policy.spec();
+    let current_utc_time = chrono::Utc::now();
+    let current_time = convert_to_local_time(&current_utc_time, policy_spec.time_zone.as_ref())?;
+    let schedule_state = determine_schedule_state(&policy_spec.schedule, &current_time)?;
 
-    let desired_state = determine_desired_state(&policy.spec().schedule, &current_time)?;
     let tasks = namespaces
         .items
         .into_iter()
-        .map(|ns| reconcile_namespace(client.clone(), ns.name_any(), desired_state))
+        .filter_map(|ns| {
+            let name = ns.name_any();
+            let ref_ = ResourceReference::new_namespace(&name);
+            let assignment_type = determine_assignment_type(
+                &ref_,
+                policy_spec.assignments.as_ref(),
+                &current_utc_time,
+                schedule_state,
+            );
+            let desired_state = match assignment_type {
+                AssignmentType::Work => true,
+                AssignmentType::Sleep => false,
+                AssignmentType::Skip => {
+                    return None;
+                }
+            };
+            Some(reconcile_namespace(client.clone(), name, desired_state))
+        })
         .collect::<Vec<_>>();
     futures::future::join_all(tasks).await;
 
@@ -568,7 +626,12 @@ pub async fn select_namespaces(
             );
         }
         NamespaceSelector::MatchExpressions(exprs) => {
-            label_selector = Some(exprs.iter().map(LabelSelectorRequirement::to_label_selector).join(","));
+            label_selector = Some(
+                exprs
+                    .iter()
+                    .map(LabelSelectorRequirement::to_label_selector)
+                    .join(","),
+            );
         }
     };
 
@@ -598,8 +661,8 @@ pub async fn select_namespaces(
 
 #[cfg(test)]
 mod tests {
-    use chrono::{NaiveTime, Weekday};
     use crate::model::WorkTime;
+    use chrono::{NaiveTime, Weekday};
 
     #[test]
     fn parses_work_time() {
@@ -653,7 +716,7 @@ mod tests {
             ("2023-09-01T17:00:01", false),
         ] {
             let now = chrono::NaiveDateTime::parse_from_str(now, "%Y-%m-%dT%H:%M:%S").unwrap();
-            let desired_state = super::determine_desired_state(&schedule, &now).unwrap();
+            let desired_state = super::determine_schedule_state(&schedule, &now).unwrap();
             assert_eq!(desired_state, expected_desired_state, "now: {}", now);
         }
     }
@@ -679,7 +742,7 @@ mod tests {
             ("2023-09-01T12:00:00", true),
         ] {
             let now = chrono::NaiveDateTime::parse_from_str(now, "%Y-%m-%dT%H:%M:%S").unwrap();
-            let desired_state = super::determine_desired_state(&schedule, &now).unwrap();
+            let desired_state = super::determine_schedule_state(&schedule, &now).unwrap();
             assert_eq!(desired_state, expected_desired_state, "now: {}", now);
         }
     }
@@ -687,7 +750,7 @@ mod tests {
     #[test]
     fn converts_to_local_time() {
         let now = chrono::DateTime::parse_from_rfc3339("2023-09-01T00:00:00Z").unwrap();
-        let now = super::convert_to_local_time(&now, "Europe/Kyiv").unwrap();
+        let now = super::convert_to_local_time(&now, Some(&"Europe/Kyiv".to_string())).unwrap();
         assert_eq!(
             now,
             chrono::NaiveDateTime::parse_from_str("2023-09-01T03:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()

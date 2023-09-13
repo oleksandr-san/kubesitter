@@ -5,6 +5,7 @@ use prometheus::{Encoder, TextEncoder};
 use controller_core::{self, telemetry};
 use schedule_controller::controller::{self, State};
 
+#[allow(clippy::unused_async)]
 #[get("/metrics")]
 async fn metrics(c: Data<State>, _req: HttpRequest) -> impl Responder {
     let metrics = c.metrics();
@@ -14,6 +15,7 @@ async fn metrics(c: Data<State>, _req: HttpRequest) -> impl Responder {
     HttpResponse::Ok().body(buffer)
 }
 
+#[allow(clippy::unused_async)]
 #[get("/health")]
 async fn health(_: HttpRequest) -> impl Responder {
     HttpResponse::Ok().json("healthy")
