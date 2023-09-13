@@ -1,7 +1,8 @@
 [workspace]
+resolver = "2"
 members = [
     "src/controller-core",
     "src/schedule-controller",
-    "src/schedule-agent",
+    "src/uniskai-agent",
     "src/uniskai-sdk",
 ]
