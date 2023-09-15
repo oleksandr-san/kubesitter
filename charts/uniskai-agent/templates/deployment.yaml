@@ -47,9 +47,16 @@ spec:
         - name: OPENTELEMETRY_ENDPOINT_URL
           value: {{ .Values.tracing.endpoint }}
         {{- end }}
+        {{- if .Values.uniskai.apiUrl }}
+        - name: UNISKAI_API_URL
+          value: {{ .Values.uniskai.apiUrl }}
+        {{- end }}
         {{- with .Values.env }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        envFrom:
+          - secretRef:
+              name: uniskai-agent
         readinessProbe:
           httpGet:
             path: /health

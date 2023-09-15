@@ -4,7 +4,7 @@ namespace: "uniskai"
 version: "" # pin a specific version
 
 image:
-  repository: uniskaidevoa.azurecr.io/schedule-controller
+  repository: uniskaidevoa.azurecr.io/uniskai-agent
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -49,3 +49,8 @@ serviceMonitor:
   enabled: false
   path: /metrics
   scheme: http
+
+uniskai:
+  apiUrl: feature-k8s-cs-agent.profisealabs.com
+  apiKey: "dznVJvtST5RELDQR.jyoFfNIxhK0A5AqEyrvhVnwsZFF0bJqrKjKpDLPcpNbXdFVYeWzj8yjHmXw4DP3t"
+  environmentId: "1"

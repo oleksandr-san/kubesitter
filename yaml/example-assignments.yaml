@@ -1,25 +1,32 @@
 apiVersion: api.profisealabs.com/v1alpha
 kind: SchedulePolicy
 metadata:
-  name: illegal
+  name: example
   labels:
     purpose: example
 spec:
-  suspend: true
-  title: "A schedule policy matching labels"
+  suspend: false
+  title: "An example policy"
 
   namespaceSelector:
     matchLabels:
       provider: kubernetes-sample-apps
+    matchNames:
+      - bookin.*
+      - emojivoto
 
   timeZone: "Europe/Kyiv"
 
   assignments:
     - type: work
-      from: "2019-01-01T00:00:00Z"
-      to: "2019-01-01T23:59:59Z"
+      from: "2023-09-14T00:00:00Z"
+      to: "2023-09-14T22:59:59Z"
       resourceReferences:
         - name: emojivoto
+        - name: some-deployment
+          namespace: bookinfo
+          kind: Deployment
+          apiVersion: apps/v1
 
   schedule:      
     workTimes:
@@ -29,5 +36,4 @@ spec:
       - start: 08:00:00
         stop: 09:00:00
         days: [Sat, Sun]
-        name: "Weekend"
 
