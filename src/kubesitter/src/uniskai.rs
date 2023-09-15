@@ -11,6 +11,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::*;
 
+static CONNECTION_FAILURE_THRESHOLD: u32 = 2;
+
 struct ConnectionStateInner {
     connected: bool,
 }
@@ -23,7 +25,7 @@ pub struct ConnectionState {
 impl ConnectionState {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(RwLock::new(ConnectionStateInner { connected: false })),
+            inner: Arc::new(RwLock::new(ConnectionStateInner { connected: true })),
         }
     }
 
@@ -78,7 +80,7 @@ impl UniskaiController {
         &self.connection_state
     }
 
-    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut store = HashMap::new();
         let mut error_count = 0;
 
@@ -91,10 +93,9 @@ impl UniskaiController {
                 }
                 Err(e) => {
                     error_count += 1;
-                    if error_count > 5 {
+                    if error_count > CONNECTION_FAILURE_THRESHOLD {
+                        warn!("Connection failure threshold reached, setting connection state to disconnected");
                         self.connection_state.set_connected(false).await;
-                        error!("Error listing policies: {}", e);
-                        return Err(Box::new(e));
                     }
                     error!("Error listing policies: {}", e);
                     tokio::time::sleep(self.check_interval).await;
@@ -137,7 +138,7 @@ impl UniskaiController {
         }
     }
 
-    async fn reconcile_policy(&self, policy: &CloudsitterPolicy) -> Result<(), Box<dyn std::error::Error>> {
+    async fn reconcile_policy(&self, policy: &CloudsitterPolicy) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Reconciling policy: {}", policy.name);
 
         let schedule_api: Api<SchedulePolicy> =

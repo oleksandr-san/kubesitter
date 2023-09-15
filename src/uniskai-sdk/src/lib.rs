@@ -4,6 +4,10 @@ pub use cloudsitter::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub static DEFAULT_API_URL : &str = "profisealabs.com";
+pub static API_KEY_ENV_VAR: &str = "UNISKAI_API_KEY";
+pub static API_URL_ENV_VAR: &str = "UNISKAI_API_URL";
+pub static ENV_ID_ENV_VAR: &str = "UNISKAI_ENV_ID";
 pub static NAMESPACE_TYPES: [&str; 2] = ["kubernetes-namespace", "eks-namespace"];
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
@@ -40,37 +44,41 @@ pub enum Error {
     Http(#[from] reqwest::Error),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("{0}")]
+    EnvVar(#[from] std::env::VarError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct UniskaiClient {
     api_key: String,
+    api_url: String,
     env_id: String,
     client: reqwest::Client,
-    feature_env: Option<String>,
 }
 
 impl UniskaiClient {
-    pub fn new(api_key: String, env_id: String) -> Self {
+    pub fn try_default() -> Result<Self>  {
+        let api_key = std::env::var(API_KEY_ENV_VAR)?;
+        let env_id = std::env::var(ENV_ID_ENV_VAR)?;
+        let api_url = std::env::var(API_URL_ENV_VAR).unwrap_or_else(|_| DEFAULT_API_URL.to_string());
+        Ok(Self::new(api_key, api_url, env_id))
+    }
+
+    pub fn new(api_key: String, api_url: String, env_id: String) -> Self {
         Self {
             api_key,
+            api_url: format!("https://{}/api", api_url),
             env_id,
             client: reqwest::Client::new(),
-            feature_env: None,
         }
     }
 
-    pub fn with_feature_env(mut self, feature_env: String) -> Self {
-        self.feature_env = Some(feature_env);
-        self
+    pub(crate) fn base_url(&self) -> &str {
+        &self.api_url
     }
 
-    pub fn base_url(&self) -> String {
-        if let Some(feature_env) = &self.feature_env {
-            format!("https://{}.profisealabs.com/api", feature_env)
-        } else {
-            "https://profisealabs.com/api".to_string()
-        }
+    pub(crate) fn timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(20)
     }
 }

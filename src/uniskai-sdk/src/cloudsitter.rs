@@ -42,6 +42,7 @@ impl UniskaiClient {
                 self.base_url(),
                 self.env_id
             ))
+            .timeout(self.timeout())
             .header("Authorization", format!("Bearer {}", self.api_key))
             .send()
             .await?;

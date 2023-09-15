@@ -3,7 +3,7 @@ use actix_web::{get, middleware, web::Data, App, HttpRequest, HttpResponse, Http
 use prometheus::{Encoder, TextEncoder};
 
 use controller_core::{self, telemetry};
-use schedule_controller::controller::{self, State};
+use kubesitter::controller::{self, State};
 
 #[allow(clippy::unused_async)]
 #[get("/metrics")]

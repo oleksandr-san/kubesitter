@@ -1,4 +1,4 @@
-use crate::kubesitter;
+use crate::{resources_logic, uniskai};
 use crate::model::{SchedulePolicy, SchedulePolicyStatus, POLICY_FINALIZER};
 
 use controller_core::{telemetry, Error, Metrics, Result};
@@ -31,6 +31,8 @@ pub struct Context {
     pub diagnostics: Arc<RwLock<Diagnostics>>,
     /// Prometheus metrics
     pub metrics: Metrics,
+    /// Uniskai connection state
+    pub uniskai_connection: uniskai::ConnectionState,    
 }
 
 #[instrument(skip(ctx, doc), fields(trace_id))]
@@ -63,13 +65,21 @@ fn error_policy(doc: Arc<SchedulePolicy>, error: &Error, ctx: Arc<Context>) -> A
 impl SchedulePolicy {
     // Reconcile (for non-finalizer related changes)
     async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action> {
+        let name = self.name_any();
+        if !ctx.uniskai_connection.is_connected().await {
+            warn!(
+                "Uniskai is not connected, skipping reconcile for {}",
+                self.name_any(),
+            );
+            return Ok(Action::requeue(Duration::from_secs(30)));
+        }
+
         let client = ctx.client.clone();
         let recorder = ctx.diagnostics.read().await.recorder(client.clone(), self);
         let ns = self.namespace().unwrap();
-        let name = self.name_any();
         let docs: Api<SchedulePolicy> = Api::namespaced(client.clone(), &ns);
 
-        if let Err(err) = kubesitter::reconcile_policy_resources(client.clone(), self).await {
+        if let Err(err) = resources_logic::reconcile_policy_resources(client.clone(), self).await {
             warn!("Failed to reconcile policy resources: {}", err);
         }
 
@@ -106,7 +116,7 @@ impl SchedulePolicy {
             .await
             .map_err(Error::KubeError)?;
 
-        // If no events were received, check back every 5 minutes
+        // If no events were received, check back every 30s
         Ok(Action::requeue(Duration::from_secs(30)))
     }
 
@@ -172,11 +182,12 @@ impl State {
     }
 
     // Create a Controller Context that can update State
-    pub fn to_context(&self, client: Client) -> Arc<Context> {
+    pub fn to_context(&self, client: Client, uniskai_connection: uniskai::ConnectionState) -> Arc<Context> {
         Arc::new(Context {
             client,
             metrics: Metrics::default().register(&self.registry).unwrap(),
             diagnostics: self.diagnostics.clone(),
+            uniskai_connection,
         })
     }
 }
@@ -184,24 +195,38 @@ impl State {
 /// Initialize the controller and shared state (given the crd is installed)
 pub async fn run(state: State) {
     let client = Client::try_default().await.expect("failed to create kube Client");
+    let uniskai_controller = uniskai::UniskaiController::new(
+        client.clone(),
+        uniskai_sdk::UniskaiClient::try_default().expect("failed to create uniskai Client"),
+        Duration::from_secs(30),
+    );
+
+    let uniskai_connection = uniskai_controller.connection_state().clone();
+    let _ = tokio::spawn(async move {
+        uniskai_controller.run().await
+    });
+    
     let docs = Api::<SchedulePolicy>::all(client.clone());
     if let Err(e) = docs.list(&ListParams::default().limit(1)).await {
         error!("CRD is not queryable; {e:?}. Is the CRD installed?");
         info!("Installation: cargo run --bin crdgen | kubectl apply -f -");
         std::process::exit(1);
     }
+
+    let context = state.to_context(client, uniskai_connection);
+
     Controller::new(docs, Config::default().any_semantic())
-        .shutdown_on_signal()
-        .run(reconcile, error_policy, state.to_context(client))
-        .filter_map(|x| async move { std::result::Result::ok(x) })
-        .for_each(|_| futures::future::ready(()))
-        .await;
+    .shutdown_on_signal()
+    .run(reconcile, error_policy, context)
+    .filter_map(|x| async move { std::result::Result::ok(x) })
+    .for_each(|_| futures::future::ready(()))
+    .await;
 }
 
 // Mock tests relying on fixtures.rs and its primitive apiserver mocks
 #[cfg(test)]
 mod test {
-    use super::{error_policy, reconcile, Context, SchedulePolicy};
+    use super::{error_policy, reconcile, Context, SchedulePolicy, uniskai};
     use crate::fixtures::{timeout_after_1s, Scenario};
     use std::sync::Arc;
 
@@ -269,7 +294,8 @@ mod test {
     #[ignore = "uses k8s current-context"]
     async fn integration_reconcile_should_set_status_and_send_event() {
         let client = kube::Client::try_default().await.unwrap();
-        let ctx = super::State::default().to_context(client.clone());
+        let uniskai_connection = uniskai::ConnectionState::default();
+        let ctx = super::State::default().to_context(client.clone(), uniskai_connection);
 
         // create a test doc
         let doc = SchedulePolicy::test().finalized().needs_hide();

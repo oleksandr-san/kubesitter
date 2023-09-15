@@ -1,6 +1,6 @@
 #![allow(unused_imports, unused_variables)]
 use controller_core::telemetry;
-use schedule_controller::{self, kubesitter};
+use kubesitter::{uniskai, resources_logic};
 use uniskai_sdk::UniskaiClient;
 
 #[tokio::main]
@@ -14,8 +14,9 @@ async fn main() {
     if command == "cs-query" {
         let api_key = args.next().expect("No API key provided");
         let env_id = args.next().expect("No environment ID provided");
+        let api_url = args.next().expect("No API URL provided");
 
-        let client = UniskaiClient::new(api_key, env_id);
+        let client = UniskaiClient::new(api_key, api_url, env_id);
         let policies = client.list_cloudsitter_policies().await.unwrap();
         for policy in policies {
             println!("Policy: {:?}", policy);
@@ -23,10 +24,11 @@ async fn main() {
     } else if command == "cs-reconcile" {
         let api_key = args.next().expect("No API key provided");
         let env_id = args.next().expect("No environment ID provided");
+        let api_url = args.next().expect("No API URL provided");
 
         let kube_client = kube::Client::try_default().await.unwrap();
-        let client = UniskaiClient::new(api_key, env_id);
-        let controller = schedule_controller::uniskai::UniskaiController::new(
+        let client = UniskaiClient::new(api_key, api_url, env_id);
+        let controller = uniskai::UniskaiController::new(
             kube_client,
             client,
             std::time::Duration::from_secs(5),
@@ -51,7 +53,7 @@ async fn main() {
         println!("Namespaces: {:?}", namespace_names);
 
         let client = kube::Client::try_default().await.unwrap();
-        kubesitter::reconcile_namespace(client, namespace_names[0].clone(), desired_state)
+        resources_logic::reconcile_namespace(client, namespace_names[0].clone(), desired_state)
             .await
             .unwrap();
     } else {

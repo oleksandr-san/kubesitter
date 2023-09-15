@@ -271,26 +271,37 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
         let mut namespace_names = Vec::new();
 
         for resource in &policy.resources {
+            let Some(name) = resource.identification.name() else { continue };
             if NAMESPACE_TYPES.contains(&resource.ty.as_str()) {
-                let Some(name) = resource.identification.name() else { continue };
                 namespace_names.push(name.to_string());
+            }
 
-                if resource.pause_from.is_some() || resource.pause_to.is_some() {
-                    // TODO: Get assignment type from resource.
-                    // For now we assume the most popular use case: wake up the namespace.
-                    let assignment = Assignment {
-                        ty: AssignmentType::Work,
-                        from: resource.pause_from,
-                        to: resource.pause_to,
-                        resource_references: vec![ResourceReference {
-                            api_version: Namespace::API_VERSION.to_string(),
-                            kind: Namespace::KIND.to_string(),
-                            name: name.to_string(),
-                            namespace: None,
-                        }],
-                    };
-                    assignments.push(assignment);
-                }
+            if resource.pause_from.is_some() || resource.pause_to.is_some() {
+                // TODO: Get assignment type from resource.
+                // For now we assume the most popular use case: wake up the namespace.
+                let resource_ref = if NAMESPACE_TYPES.contains(&resource.ty.as_str()) {
+                    ResourceReference {
+                        api_version: Namespace::API_VERSION.to_string(),
+                        kind: Namespace::KIND.to_string(),
+                        name: name.to_string(),
+                        namespace: None,
+                    }
+                } else {
+                    ResourceReference {
+                        api_version: "".into(),
+                        kind: resource.ty.clone(),
+                        name: name.to_string(),
+                        namespace: None,
+                    }
+                };
+
+                let assignment = Assignment {
+                    ty: AssignmentType::Work,
+                    from: resource.pause_from,
+                    to: resource.pause_to,
+                    resource_references: vec![resource_ref],
+                };
+                assignments.push(assignment);
             }
         }
 

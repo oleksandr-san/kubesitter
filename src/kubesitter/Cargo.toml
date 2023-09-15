@@ -1,5 +1,5 @@
 [package]
-name = "schedule-controller"
+name = "kubesitter"
 version = "0.0.1"
 authors = ["Oleksandr <oleksandr.an@profisealabs.com>"]
 edition = "2021"
@@ -7,7 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [lib]
-name = "schedule_controller"
+name = "kubesitter"
 path = "src/lib.rs"
 
 [[bin]]

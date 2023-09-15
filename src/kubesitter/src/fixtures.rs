@@ -5,6 +5,7 @@ use crate::{
         NamespaceSelector, Schedule, SchedulePolicy, SchedulePolicySpec, SchedulePolicyStatus, WorkTime,
         POLICY_FINALIZER as DOCUMENT_FINALIZER,
     },
+    uniskai::ConnectionState as UniskaiConnectionState,
     Context,
 };
 use assert_json_diff::assert_json_include;
@@ -20,7 +21,7 @@ impl SchedulePolicy {
     /// A document that will cause the reconciler to fail
     pub fn illegal() -> Self {
         let spec = SchedulePolicySpec {
-            title: "test".into(),
+            title: "illegal".into(),
             suspend: false,
             namespace_selector: NamespaceSelector::MatchNames(Vec::new()),
             schedule: Schedule::WorkTimes(vec![WorkTime {
@@ -268,6 +269,7 @@ impl Context {
             client: mock_client,
             metrics: Metrics::default().register(&registry).unwrap(),
             diagnostics: Arc::default(),
+            uniskai_connection: UniskaiConnectionState::default(),
         };
         (Arc::new(ctx), ApiServerVerifier(handle), registry)
     }

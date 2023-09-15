@@ -1,5 +1,5 @@
 pub mod controller;
-pub mod kubesitter;
+pub mod resources_logic;
 pub mod model;
 pub mod uniskai;
 
