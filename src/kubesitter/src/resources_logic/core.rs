@@ -1,12 +1,10 @@
 use super::{
-    SKIP_ANNOTATION,
     apps::{
-        generate_daemon_set_patch,
-        generate_deployment_patch,
-        generate_replica_set_patch,
+        generate_daemon_set_patch, generate_deployment_patch, generate_replica_set_patch,
         generate_stateful_set_patch,
     },
     batch::generate_cron_job_patch,
+    SKIP_ANNOTATION,
 };
 use crate::model::{
     Assignment, AssignmentType, LabelSelectorRequirement, NamespaceSelector, ResourceReference, Schedule,
@@ -236,7 +234,7 @@ where
     let dynamic_type = R::DynamicType::default();
     let kind = R::kind(&dynamic_type);
 
-    let ps = PatchParams::apply("cntrlr").force();
+    let ps = PatchParams::apply("kubesitter").force();
     for resource in resources
         .list(&ListParams::default())
         .await
@@ -246,7 +244,7 @@ where
             info!(
                 "Skipping {} {}/{} because it has the {} annotation",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
                 SKIP_ANNOTATION,
             );
@@ -257,7 +255,7 @@ where
             info!(
                 "Patching {} {}/{}: {:?}",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
                 patch,
             );
@@ -266,7 +264,7 @@ where
                     info!(
                         "Successfully patched {} {}/{}",
                         kind,
-                        resource.namespace().unwrap(),
+                        resource.namespace().unwrap_or_default(),
                         resource.name_any(),
                     );
                 }
@@ -274,7 +272,7 @@ where
                     warn!(
                         "Failed to patch {} {}/{}: {}",
                         kind,
-                        resource.namespace().unwrap(),
+                        resource.namespace().unwrap_or_default(),
                         resource.name_any(),
                         err,
                     );
@@ -282,10 +280,11 @@ where
             }
         } else {
             info!(
-                "No need to patch {} {}/{}",
+                "No need to patch {} {}/{} for desired state {}",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
+                desired_state,
             );
         }
     }

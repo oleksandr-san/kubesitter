@@ -287,12 +287,13 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
                         namespace: None,
                     }
                 } else {
-                    ResourceReference {
-                        api_version: "".into(),
-                        kind: resource.ty.clone(),
-                        name: name.to_string(),
-                        namespace: None,
-                    }
+                    continue;
+                    // ResourceReference {
+                    //     api_version: "".into(),
+                    //     kind: resource.ty.clone(),
+                    //     name: name.to_string(),
+                    //     namespace: None,
+                    // }
                 };
 
                 let assignment = Assignment {

@@ -3,11 +3,13 @@ use crate::{Identification, Result, UniskaiClient};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct CloudsitterSchedule {
     pub hours: Vec<bool>,
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct CloudsitterResource {
     pub id: String,
@@ -18,6 +20,7 @@ pub struct CloudsitterResource {
     pub pause_to: Option<DateTime<Utc>>,
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct CloudsitterPolicy {
     pub id: i64,

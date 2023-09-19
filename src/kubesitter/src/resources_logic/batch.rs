@@ -19,7 +19,7 @@ pub(super) fn generate_cron_job_patch(resource: &CronJob, desired_state: bool) -
             warn!(
                 "Skipping {} {}/{} because it does not have the {} annotation",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
                 SUSPENDED_ANNOTATION,
             );
@@ -45,7 +45,7 @@ pub(super) fn generate_cron_job_patch(resource: &CronJob, desired_state: bool) -
             info!(
                 "Skipping {} {}/{} because it is already suspended",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
             );
             return None;

@@ -4,7 +4,8 @@ pub use cloudsitter::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub static DEFAULT_API_URL : &str = "profisealabs.com";
+pub const CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+pub static DEFAULT_API_URL: &str = "profisealabs.com";
 pub static API_KEY_ENV_VAR: &str = "UNISKAI_API_KEY";
 pub static API_URL_ENV_VAR: &str = "UNISKAI_API_URL";
 pub static ENV_ID_ENV_VAR: &str = "UNISKAI_ENV_ID";
@@ -55,10 +56,11 @@ pub struct UniskaiClient {
     api_url: String,
     env_id: String,
     client: reqwest::Client,
+    timeout: std::time::Duration,
 }
 
 impl UniskaiClient {
-    pub fn try_default() -> Result<Self>  {
+    pub fn try_default() -> Result<Self> {
         let api_key = std::env::var(API_KEY_ENV_VAR)?;
         let env_id = std::env::var(ENV_ID_ENV_VAR)?;
         let api_url = std::env::var(API_URL_ENV_VAR).unwrap_or_else(|_| DEFAULT_API_URL.to_string());
@@ -71,6 +73,7 @@ impl UniskaiClient {
             api_url: format!("https://{}/api", api_url),
             env_id,
             client: reqwest::Client::new(),
+            timeout: CONNECTION_TIMEOUT,
         }
     }
 
@@ -79,6 +82,6 @@ impl UniskaiClient {
     }
 
     pub(crate) fn timeout(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(20)
+        self.timeout
     }
 }

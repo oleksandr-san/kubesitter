@@ -239,7 +239,7 @@ impl ApiServerVerifier {
         assert_eq!(
             request.uri().to_string(),
             format!(
-                "/apis/{}/namespaces/default/schedulepolicies/{}/status?&force=true&fieldManager=cntrlr",
+                "/apis/{}/namespaces/default/schedulepolicies/{}/status?&force=true&fieldManager=kubesitter",
                 SchedulePolicy::api_version(&()),
                 doc.name_any()
             )

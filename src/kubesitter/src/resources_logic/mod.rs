@@ -1,6 +1,6 @@
 mod apps;
-mod core;
 mod batch;
+mod core;
 
 pub use self::core::*;
 

@@ -13,6 +13,10 @@ app.kubernetes.io/name: {{ include "controller.name" . }}
 app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
 {{- end }}
 
+{{- define "controller.annotations" -}}
+cloudsitter.uniskai.com/skip: "true"
+{{- end }}
+
 {{- define "controller.selectorLabels" -}}
 app: {{ include "controller.name" . }}
 {{- end }}

@@ -9,7 +9,7 @@ use kube::{
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::*;
+use tracing::{error, info, warn};
 
 static CONNECTION_FAILURE_THRESHOLD: u32 = 2;
 
@@ -46,6 +46,7 @@ impl Default for ConnectionState {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub struct UniskaiController {
     kube_client: KubeClient,
     uniskai_client: UniskaiClient,
@@ -94,7 +95,9 @@ impl UniskaiController {
                 Err(e) => {
                     error_count += 1;
                     if error_count > CONNECTION_FAILURE_THRESHOLD {
-                        warn!("Connection failure threshold reached, setting connection state to disconnected");
+                        warn!(
+                            "Connection failure threshold reached, setting connection state to disconnected"
+                        );
                         self.connection_state.set_connected(false).await;
                     }
                     error!("Error listing policies: {}", e);
@@ -138,7 +141,10 @@ impl UniskaiController {
         }
     }
 
-    async fn reconcile_policy(&self, policy: &CloudsitterPolicy) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn reconcile_policy(
+        &self,
+        policy: &CloudsitterPolicy,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Reconciling policy: {}", policy.name);
 
         let schedule_api: Api<SchedulePolicy> =

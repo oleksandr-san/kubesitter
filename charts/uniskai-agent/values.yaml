@@ -51,6 +51,6 @@ serviceMonitor:
   scheme: http
 
 uniskai:
-  apiUrl: feature-k8s-cs-agent.profisealabs.com
-  apiKey: "dznVJvtST5RELDQR.jyoFfNIxhK0A5AqEyrvhVnwsZFF0bJqrKjKpDLPcpNbXdFVYeWzj8yjHmXw4DP3t"
+  apiUrl: profisealabs.com
+  apiKey: ""
   environmentId: "1"

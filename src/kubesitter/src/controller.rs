@@ -1,5 +1,5 @@
-use crate::{resources_logic, uniskai};
 use crate::model::{SchedulePolicy, SchedulePolicyStatus, POLICY_FINALIZER};
+use crate::{resources_logic, uniskai};
 
 use controller_core::{telemetry, Error, Metrics, Result};
 
@@ -20,7 +20,7 @@ use serde::Serialize;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
-use tracing::*;
+use tracing::{error, field, info, instrument, warn, Span};
 
 // Context for our reconciler
 #[derive(Clone)]
@@ -32,7 +32,7 @@ pub struct Context {
     /// Prometheus metrics
     pub metrics: Metrics,
     /// Uniskai connection state
-    pub uniskai_connection: uniskai::ConnectionState,    
+    pub uniskai_connection: uniskai::ConnectionState,
 }
 
 #[instrument(skip(ctx, doc), fields(trace_id))]
@@ -110,7 +110,7 @@ impl SchedulePolicy {
                 suspended: should_suspend,
             }
         }));
-        let ps = PatchParams::apply("cntrlr").force();
+        let ps = PatchParams::apply("kubesitter").force();
         let _o = docs
             .patch_status(&name, &ps, &new_status)
             .await
@@ -202,10 +202,8 @@ pub async fn run(state: State) {
     );
 
     let uniskai_connection = uniskai_controller.connection_state().clone();
-    let _ = tokio::spawn(async move {
-        uniskai_controller.run().await
-    });
-    
+    let _uniskai_controller = tokio::spawn(async move { uniskai_controller.run().await });
+
     let docs = Api::<SchedulePolicy>::all(client.clone());
     if let Err(e) = docs.list(&ListParams::default().limit(1)).await {
         error!("CRD is not queryable; {e:?}. Is the CRD installed?");
@@ -216,17 +214,17 @@ pub async fn run(state: State) {
     let context = state.to_context(client, uniskai_connection);
 
     Controller::new(docs, Config::default().any_semantic())
-    .shutdown_on_signal()
-    .run(reconcile, error_policy, context)
-    .filter_map(|x| async move { std::result::Result::ok(x) })
-    .for_each(|_| futures::future::ready(()))
-    .await;
+        .shutdown_on_signal()
+        .run(reconcile, error_policy, context)
+        .filter_map(|x| async move { std::result::Result::ok(x) })
+        .for_each(|_| futures::future::ready(()))
+        .await;
 }
 
 // Mock tests relying on fixtures.rs and its primitive apiserver mocks
 #[cfg(test)]
 mod test {
-    use super::{error_policy, reconcile, Context, SchedulePolicy, uniskai};
+    use super::{error_policy, reconcile, uniskai, Context, SchedulePolicy};
     use crate::fixtures::{timeout_after_1s, Scenario};
     use std::sync::Arc;
 

@@ -1,7 +1,4 @@
-use super::{
-    REPLICAS_ANNOTATION,
-    NODE_SELECTOR_ANNOTATION,
-};
+use super::{NODE_SELECTOR_ANNOTATION, REPLICAS_ANNOTATION};
 
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use kube::{
@@ -85,7 +82,10 @@ pub(super) fn generate_deployment_patch(deploy: &Deployment, desired_state: bool
     }
 }
 
-pub(super) fn generate_stateful_set_patch(resource: &StatefulSet, desired_state: bool) -> Option<Patch<Value>> {
+pub(super) fn generate_stateful_set_patch(
+    resource: &StatefulSet,
+    desired_state: bool,
+) -> Option<Patch<Value>> {
     let api_version = StatefulSet::api_version(&());
     let kind = StatefulSet::kind(&());
 
@@ -94,7 +94,7 @@ pub(super) fn generate_stateful_set_patch(resource: &StatefulSet, desired_state:
             warn!(
                 "Skipping {} {}/{} because it does not have the {} annotation",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
                 REPLICAS_ANNOTATION,
             );
@@ -104,7 +104,7 @@ pub(super) fn generate_stateful_set_patch(resource: &StatefulSet, desired_state:
             warn!(
                 "Skipping {} {}/{} because the {} annotation is not an integer",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
                 REPLICAS_ANNOTATION,
             );
@@ -131,7 +131,7 @@ pub(super) fn generate_stateful_set_patch(resource: &StatefulSet, desired_state:
                 "Skipping {} {}/{} because it is already scaled to 0",
                 kind,
                 resource.name_any(),
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
             );
             return None;
         }
@@ -159,7 +159,7 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
         debug!(
             "Skipping {} {}/{} because it is owned by another resource",
             kind,
-            resource.namespace().unwrap(),
+            resource.namespace().unwrap_or_default(),
             resource.name_any(),
         );
         return None;
@@ -170,7 +170,7 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
             warn!(
                 "Skipping {} {}/{} because it does not have the {} annotation",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
                 REPLICAS_ANNOTATION,
             );
@@ -180,7 +180,7 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
             warn!(
                 "Skipping {} {}/{} because the {} annotation is not an integer",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
                 REPLICAS_ANNOTATION,
             );
@@ -207,7 +207,7 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
                 "Skipping {} {}/{} because it is already scaled to 0",
                 kind,
                 resource.name_any(),
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
             );
             return None;
         }
@@ -238,14 +238,24 @@ pub(super) fn generate_daemon_set_patch(resource: &DaemonSet, desired_state: boo
         .spec
         .as_ref()?
         .node_selector
-        .as_ref()?;
+        .as_ref();
 
     if desired_state {
+        if node_selector.is_none() {
+            info!(
+                "Skipping {} {}/{} because it does not have a node selector",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+            );
+            return None;
+        }
+
         let Some(original_node_selector) = resource.annotations().get(NODE_SELECTOR_ANNOTATION) else {
             warn!(
                 "Skipping {} {}/{} because it does not have the {} annotation",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
                 REPLICAS_ANNOTATION,
             );
@@ -253,18 +263,19 @@ pub(super) fn generate_daemon_set_patch(resource: &DaemonSet, desired_state: boo
         };
 
         let original_node_selector =
-            match serde_json::from_str::<BTreeMap<String, String>>(original_node_selector) {
-                Ok(mut node_selector) => {
+            match serde_json::from_str::<Option<BTreeMap<String, String>>>(original_node_selector) {
+                Ok(Some(mut node_selector)) => {
                     for key in DEAMONSET_SLEEPING_NODE_SELECTOR.keys() {
                         node_selector.remove(key);
                     }
-                    node_selector
+                    Some(node_selector)
                 }
+                Ok(None) => None,
                 Err(err) => {
                     warn!(
                         "Skipping {} {}/{} because the {} annotation is not a valid JSON: {}",
                         kind,
-                        resource.namespace().unwrap(),
+                        resource.namespace().unwrap_or_default(),
                         resource.name_any(),
                         NODE_SELECTOR_ANNOTATION,
                         err,
@@ -273,11 +284,22 @@ pub(super) fn generate_daemon_set_patch(resource: &DaemonSet, desired_state: boo
                 }
             };
 
+        if node_selector == original_node_selector.as_ref() {
+            info!(
+                "Skipping {} {}/{} because node selector has not changed",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+            );
+            return None;
+        }
+
         let patch: Patch<Value> = Patch::Apply(json!({
             "apiVersion": api_version,
             "kind": kind,
             "metadata": {
                 "annotations": {
+                    // This can only be used with strategic merge patch
                     // NODE_SELECTOR_ANNOTATION: node_selector,
                 },
             },
@@ -291,18 +313,30 @@ pub(super) fn generate_daemon_set_patch(resource: &DaemonSet, desired_state: boo
         }));
         Some(patch)
     } else {
-        if node_selector
-            .keys()
-            .all(|k| DEAMONSET_SLEEPING_NODE_SELECTOR.contains_key(k))
-        {
+        if node_selector.is_some_and(|node_selector| {
+            node_selector
+                .keys()
+                .all(|k| DEAMONSET_SLEEPING_NODE_SELECTOR.contains_key(k))
+        }) {
             info!(
                 "Skipping {} {}/{} because it is already suspended",
                 kind,
-                resource.namespace().unwrap(),
+                resource.namespace().unwrap_or_default(),
                 resource.name_any(),
             );
             return None;
         }
+
+        let Ok(node_selector) = serde_json::to_string(&node_selector) else {
+            warn!(
+                "Skipping {} {}/{} due to annotation serialization error: {:?}",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+                node_selector,
+            );
+            return None;
+        };
 
         let sleeping_node_selector = Lazy::force(&DEAMONSET_SLEEPING_NODE_SELECTOR);
         let patch: Patch<Value> = Patch::Apply(json!({
@@ -322,5 +356,36 @@ pub(super) fn generate_daemon_set_patch(resource: &DaemonSet, desired_state: boo
             }
         }));
         Some(patch)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use k8s_openapi::api::{
+        apps::v1::DaemonSet,
+        core::v1::{PodSpec, PodTemplateSpec},
+    };
+
+    #[test]
+    fn patches_deamonset_with_null_selector() {
+        let ds = DaemonSet {
+            spec: Some(k8s_openapi::api::apps::v1::DaemonSetSpec {
+                template: PodTemplateSpec {
+                    spec: Some(PodSpec {
+                        node_selector: None,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let patch = super::generate_daemon_set_patch(&ds, true);
+        assert!(patch.is_none());
+
+        let patch = super::generate_daemon_set_patch(&ds, false);
+        assert!(patch.is_some());
     }
 }
