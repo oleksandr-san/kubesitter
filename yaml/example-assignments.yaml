@@ -5,12 +5,19 @@ metadata:
   labels:
     purpose: example
 spec:
-  suspend: false
+  suspend: true
   title: "An example policy"
 
   namespaceSelector:
-    matchLabels:
-      provider: kubernetes-sample-apps
+    # either matchLabels, matchExpressions or matchNames can be used
+    # matchLabels:
+    #   provider: kubernetes-sample-apps
+    # matchExpressions:
+    #   - key: project
+    #     operator: in
+    #     values:
+    #       - emojivoto
+    #       - bookinfo
     matchNames:
       - bookin.*
       - emojivoto
@@ -18,15 +25,11 @@ spec:
   timeZone: "Europe/Kyiv"
 
   assignments:
-    - type: work
+    - type: work  # or sleep or skip
       from: "2023-09-14T00:00:00Z"
       to: "2023-09-14T22:59:59Z"
       resourceReferences:
         - name: emojivoto
-        - name: some-deployment
-          namespace: bookinfo
-          kind: Deployment
-          apiVersion: apps/v1
 
   schedule:      
     workTimes:

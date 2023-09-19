@@ -1,8 +1,36 @@
 ## Uniskai Agent
 
-A rust kubernetes reference controller for a [`Document` resource](https://github.com/kube-rs/controller-rs/blob/main/yaml/crd.yaml) using [kube](https://github.com/kube-rs/kube/), with observability instrumentation.
+Uniskai Agent brings the platform features to Kubernetes clusters without compromising security.
 
-The `Controller` object reconciles `Document` instances when changes to it are detected, writes to its `.status` object, creates associated events, and uses finalizers for guaranteed delete handling.
+Kubesitter defines the `SchedulePoicy` CRD which allows to define a schedule for a set of namespaces.
+The schedule is defined by a set of `WorkTime` objects. The `SchedulePolicy` object is applied to namespaces that match the `NamespaceSelector`. The `SchedulePolicy` object can be suspended by setting the `suspend` field to `true`.
+
+## Image release
+
+1. Build the docker image
+```sh
+TAG=<TAG>
+docker build -t uniskaidevoa.azurecr.io/uniskai-agent:$TAG .
+```
+
+2. Publish the docker image
+```sh
+az login
+az acr login --name uniskaidevoa
+docker push uniskaidevoa.azurecr.io/uniskai-agent:$TAG
+```
+
+3. Update the deployment manifests
+```powershell
+helm template charts/uniskai-agent --set image.tag=$TAG | Out-File -encoding ASCII ./yaml/deployment.yaml
+cargo run --bin crdgen -p kubesitter | Out-File -encoding ASCII ./yaml/crd.yaml
+```
+
+4. Deploy manifests
+```sh
+aws s3 cp --acl public-read ./yaml/deployment.yaml s3://uniskai-dev-templates/kubernetes-agent/deployment.yaml
+aws s3 cp --acl public-read ./yaml/crd.yaml s3://uniskai-dev-templates/kubernetes-agent/crd.yaml
+```
 
 ## Installation
 

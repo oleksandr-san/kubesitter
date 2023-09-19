@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
-static CONNECTION_FAILURE_THRESHOLD: u32 = 2;
+static CONNECTION_FAILURE_THRESHOLD: u32 = 5;
 
 struct ConnectionStateInner {
     connected: bool,

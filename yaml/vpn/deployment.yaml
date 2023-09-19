@@ -71,7 +71,7 @@ spec:
                 - NET_ADMIN
           env:
             - name: TZ
-              value: "Turkey"
+              value: "Europe/Kyiv"
           volumeMounts:
             - name: vpn-config
               mountPath: /vpn/client.ovpn
