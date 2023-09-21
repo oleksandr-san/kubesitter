@@ -25,7 +25,7 @@ pub struct ConnectionState {
 impl ConnectionState {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(RwLock::new(ConnectionStateInner { connected: true })),
+            inner: Arc::new(RwLock::new(ConnectionStateInner { connected: false })),
         }
     }
 

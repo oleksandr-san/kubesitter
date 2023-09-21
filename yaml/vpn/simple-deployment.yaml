@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-test
+  namespace: uniskai
+  labels:
+    app: simple-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simple-test
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: simple-test
+    spec:
+      containers:
+        - name: app1
+          image: jonlabelle/network-tools
+          command:
+            - sleep
+            - '1000000'
+          resources: {}
+          tty: true
+      serviceAccountName: uniskai-agent
+      dnsConfig:
+        nameservers:
+          - 8.8.8.8
+          - 8.8.4.4
+

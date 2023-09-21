@@ -30,7 +30,77 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.vpnEnabled }}
+      dnsConfig:
+        nameservers:
+          - 8.8.8.8
+          - 8.8.4.4
+      volumes:
+        - name: vpn-config
+          secret:
+            secretName: vpn-config
+            items:
+                - key: client.ovpn
+                  path: client.ovpn
+        - name: vpn-auth
+          secret:
+            secretName: vpn-auth
+            items:
+                - key: auth.txt
+                  path: auth.txt
+        - name: tmp
+          emptyDir: {}
+      initContainers:
+      - name: vpn-route-init
+        image: busybox
+        command:
+          - /bin/sh
+          - -c
+          - |
+            KUBERNETES_SERVICE_HOST=$KUBERNETES_SERVICE_HOST
+            DEFAULT_GATEWAY=$(ip route | grep default | awk '{print $3}')
+            echo "KUBERNETES_SERVICE_HOST: $KUBERNETES_SERVICE_HOST"
+            echo "DEFAULT_GATEWAY: $DEFAULT_GATEWAY"
+            echo "BEGIN"
+
+            echo "#!/bin/sh" > /tmp/route/route-override.sh
+            echo "VPN_GATEWAY=\$(route -n | awk 'NR==3' | awk '{ print \$2 }')" >> /tmp/route/route-override.sh
+            echo "ip route del 0.0.0.0/1 via \$VPN_GATEWAY" >> /tmp/route/route-override.sh
+            echo "ip route add ${KUBERNETES_SERVICE_HOST} via ${DEFAULT_GATEWAY}" >> /tmp/route/route-override.sh
+            echo "echo 'Route Updated'" >> /tmp/route/route-override.sh
+
+            cat /tmp/route/route-override.sh
+            chown root:root /tmp/route/route-override.sh
+            chmod o+x /tmp/route/route-override.sh
+            echo "END"
+
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp/route
       containers:
+      - name: vpn
+        image: dperson/openvpn-client
+        command: ["/bin/sh","-c"]
+        args: ["openvpn --config 'vpn/client.ovpn' --auth-user-pass 'vpn/auth.txt' --script-security 3 --route-up /tmp/route/route-override.sh;"]
+        stdin: true
+        tty: true
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - NET_ADMIN
+        volumeMounts:
+          - name: vpn-config
+            mountPath: /vpn/client.ovpn
+            subPath: client.ovpn
+          - name: vpn-auth
+            mountPath: /vpn/auth.txt
+            subPath: auth.txt
+          - name: tmp
+            mountPath: /tmp/route
+      {{- else }}
+      containers:
+      {{- end }}
       - name: {{ .Chart.Name }}
         image: {{ .Values.image.repository }}:{{ include "controller.tag" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}

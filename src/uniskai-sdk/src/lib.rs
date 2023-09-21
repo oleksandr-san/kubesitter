@@ -4,7 +4,7 @@ pub use cloudsitter::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+pub const CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 pub static DEFAULT_API_URL: &str = "profisealabs.com";
 pub static API_KEY_ENV_VAR: &str = "UNISKAI_API_KEY";
 pub static API_URL_ENV_VAR: &str = "UNISKAI_API_URL";
