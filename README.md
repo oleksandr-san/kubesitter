@@ -49,6 +49,7 @@ aws s3 cp --acl public-read ./yaml/deployment-aws-vpn.yaml s3://uniskai-dev-temp
 4. Update and deploy CRD manifest
 ```sh
 cargo run --bin crdgen -p kubesitter > ./yaml/crd.yaml
+cp ./yaml/crd.yaml ./charts/uniskai-agent/templates/crd.yaml
 aws s3 cp --acl public-read ./yaml/crd.yaml s3://uniskai-dev-templates/kubernetes-agent/crd.yaml
 ```
 

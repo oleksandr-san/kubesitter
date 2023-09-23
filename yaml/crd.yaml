@@ -26,9 +26,35 @@ spec:
                 items:
                   properties:
                     from:
-                      format: date-time
+                      format: partial-date-time
                       nullable: true
+                      pattern: ^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d$
                       type: string
+                    resourceFilter:
+                      nullable: true
+                      oneOf:
+                      - required:
+                        - matchResources
+                      properties:
+                        matchResources:
+                          items:
+                            properties:
+                              apiVersion:
+                                default: v1
+                                type: string
+                              kind:
+                                default: Namespace
+                                type: string
+                              name:
+                                type: string
+                              namespace:
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type: array
+                      type: object
                     resourceReferences:
                       items:
                         properties:
@@ -46,10 +72,12 @@ spec:
                         required:
                         - name
                         type: object
+                      nullable: true
                       type: array
                     to:
-                      format: date-time
+                      format: partial-date-time
                       nullable: true
+                      pattern: ^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d$
                       type: string
                     type:
                       enum:
@@ -58,7 +86,6 @@ spec:
                       - sleep
                       type: string
                   required:
-                  - resourceReferences
                   - type
                   type: object
                 nullable: true
@@ -128,9 +155,11 @@ spec:
                           type: array
                         start:
                           format: partial-date-time
+                          pattern: ^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$
                           type: string
                         stop:
                           format: partial-date-time
+                          pattern: ^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$
                           type: string
                       required:
                       - days
