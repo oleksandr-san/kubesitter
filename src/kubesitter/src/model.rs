@@ -115,8 +115,10 @@ pub struct Assignment {
     #[serde(rename = "type")]
     pub ty: AssignmentType,
     #[schemars(regex = "DATE_TIME_PATTERN")]
+    #[serde(default)]
     #[serde(deserialize_with = "safe_date_time::deserialize")]
     pub from: Option<chrono::NaiveDateTime>,
+    #[serde(default)]
     #[schemars(regex = "DATE_TIME_PATTERN")]
     #[serde(deserialize_with = "safe_date_time::deserialize")]
     pub to: Option<chrono::NaiveDateTime>,
@@ -508,6 +510,18 @@ mod tests {
             super::convert_to_local_time(&now, Some(&"-2".to_string())).unwrap(),
             chrono::NaiveDateTime::parse_from_str("2023-08-31T22:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()
         );
+    }
+
+    #[test]
+    fn parses_sleep_all_assignment() {
+        let assignment = r#"{
+            "type": "sleep"
+        }"#;
+        let assignment: super::Assignment = serde_json::from_str(assignment).unwrap();
+        assert_eq!(assignment.ty, super::AssignmentType::Sleep);
+        assert_eq!(assignment.from, None);
+        assert_eq!(assignment.to, None);
+        assert_eq!(assignment.resource_filter, None);
     }
 
     #[test]
