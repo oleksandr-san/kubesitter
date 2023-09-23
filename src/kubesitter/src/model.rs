@@ -400,15 +400,12 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
     }
 }
 
-
 mod safe_date_time {
     use serde::{self, Deserialize, Deserializer};
 
     use super::DATE_TIME_FORMAT;
 
-    pub fn deserialize<'de, D>(
-        deserializer: D,
-    ) -> Result<Option<chrono::NaiveDateTime>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<chrono::NaiveDateTime>, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -510,6 +507,44 @@ mod tests {
         assert_eq!(
             super::convert_to_local_time(&now, Some(&"-2".to_string())).unwrap(),
             chrono::NaiveDateTime::parse_from_str("2023-08-31T22:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()
+        );
+    }
+
+    #[test]
+    fn parses_assignment() {
+        let assignment = r#"{
+            "type": "work",
+            "from": "2023-09-01T00:00:00+03:00",
+            "to": "2023-09-01T00:00:00Z",
+            "resourceFilter": {
+                "matchResources": [{
+                    "apiVersion": "v1",
+                    "kind": "Namespace",
+                    "name": "test",
+                    "namespace": null
+                }]
+            }
+        }"#;
+        let assignment: super::Assignment = serde_json::from_str(assignment).unwrap();
+        assert_eq!(assignment.ty, super::AssignmentType::Work);
+        assert_eq!(
+            assignment.from,
+            Some(chrono::NaiveDateTime::parse_from_str("2023-09-01T00:00:00", "%Y-%m-%dT%H:%M:%S").unwrap())
+        );
+        assert_eq!(
+            assignment.to,
+            Some(chrono::NaiveDateTime::parse_from_str("2023-09-01T00:00:00", "%Y-%m-%dT%H:%M:%S").unwrap())
+        );
+        assert_eq!(
+            assignment.resource_filter,
+            Some(super::ResourceFilter::MatchResources(vec![
+                super::ResourceReference {
+                    api_version: "v1".to_string(),
+                    kind: "Namespace".to_string(),
+                    name: "test".to_string(),
+                    namespace: None
+                }
+            ]))
         );
     }
 }
