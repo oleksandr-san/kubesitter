@@ -66,6 +66,10 @@ impl SchedulePolicy {
     // Reconcile (for non-finalizer related changes)
     async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action> {
         let name = self.name_any();
+        if name == "illegal" {
+            return Err(Error::IllegalResource);
+        }
+
         if !ctx.uniskai_connection.is_connected().await {
             warn!(
                 "Uniskai is not connected, skipping reconcile for {}",
@@ -75,15 +79,12 @@ impl SchedulePolicy {
         }
 
         let client = ctx.client.clone();
-        let recorder = ctx.diagnostics.read().await.recorder(client.clone(), self);
-        let ns = self.namespace().unwrap();
-        let docs: Api<SchedulePolicy> = Api::namespaced(client.clone(), &ns);
-
         if let Err(err) = resources_logic::reconcile_policy_resources(client.clone(), self).await {
             warn!("Failed to reconcile policy resources: {}", err);
         }
 
         let should_suspend = self.spec.suspend;
+        let recorder = ctx.diagnostics.read().await.recorder(client.clone(), self);
         if !self.was_suspended() && should_suspend {
             // send an event once per hide
             recorder
@@ -98,10 +99,6 @@ impl SchedulePolicy {
                 .map_err(Error::KubeError)?;
         }
 
-        if name == "illegal" {
-            return Err(Error::IllegalResource);
-        }
-
         // always overwrite status object with what we saw
         let new_status = Patch::Apply(json!({
             "apiVersion": SchedulePolicy::api_version(&()),
@@ -110,6 +107,8 @@ impl SchedulePolicy {
                 suspended: should_suspend,
             }
         }));
+        let ns = self.namespace().unwrap();
+        let docs: Api<SchedulePolicy> = Api::namespaced(client.clone(), &ns);
         let ps = PatchParams::apply("kubesitter").force();
         let _o = docs
             .patch_status(&name, &ps, &new_status)

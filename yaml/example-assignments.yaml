@@ -5,6 +5,7 @@ metadata:
   labels:
     purpose: example
 spec:
+  # The policy can be suspended by setting the suspend field to true.
   suspend: true
   title: "An example policy"
 
@@ -18,6 +19,7 @@ spec:
     #     values:
     #       - emojivoto
     #       - bookinfo
+    # Match namespace names using regular expressions
     matchNames:
       - bookin.*
       - emojivoto
@@ -31,12 +33,13 @@ spec:
       resourceReferences:
         - name: emojivoto
 
-  schedule:      
+  schedule:   
+    # A set of WorkTime objects defines the schedule
     workTimes:
+      # Each representing a repeating running time period
       - start: 07:00:00
         stop: 18:00:00
         days: [Mon, Tue, Wed, Thu, Fri]
       - start: 08:00:00
         stop: 09:00:00
         days: [Sat, Sun]
-

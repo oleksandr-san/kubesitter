@@ -7,8 +7,8 @@ use super::{
     SKIP_ANNOTATION,
 };
 use crate::model::{
-    Assignment, AssignmentType, LabelSelectorRequirement, NamespaceSelector, ResourceReference, Schedule,
-    SchedulePolicy,
+    convert_to_local_time, Assignment, AssignmentType, LabelSelectorRequirement, NamespaceSelector,
+    ResourceFilter, ResourceReference, Schedule, SchedulePolicy,
 };
 use controller_core::{Error, Result};
 
@@ -32,20 +32,6 @@ use serde_json::Value;
 use std::fmt::Debug;
 use tracing::{info, warn};
 
-pub fn convert_to_local_time<Tz: chrono::TimeZone>(
-    time: &chrono::DateTime<Tz>,
-    time_zone: Option<&String>,
-) -> Result<chrono::NaiveDateTime, Error> {
-    if let Some(time_zone) = time_zone {
-        let time_zone: chrono_tz::Tz = time_zone
-            .parse()
-            .map_err(|err: chrono_tz::ParseError| Error::InvalidParameters(err.into()))?;
-        Ok(time.with_timezone(&time_zone).naive_local())
-    } else {
-        Ok(time.naive_utc())
-    }
-}
-
 pub fn determine_schedule_state(schedule: &Schedule, now: &chrono::NaiveDateTime) -> Result<bool, Error> {
     match schedule {
         Schedule::WorkTimes(times) => {
@@ -60,10 +46,18 @@ pub fn determine_schedule_state(schedule: &Schedule, now: &chrono::NaiveDateTime
     }
 }
 
+impl ResourceFilter {
+    pub fn matches(&self, resource: &ResourceReference) -> bool {
+        match self {
+            ResourceFilter::MatchResources(filters) => filters.iter().any(|filter| filter.matches(resource)),
+        }
+    }
+}
+
 pub fn determine_assignment_type(
     resource: &ResourceReference,
     assignments: Option<&Vec<Assignment>>,
-    current_time: &chrono::DateTime<chrono::Utc>,
+    current_time: &chrono::NaiveDateTime,
     schedule_state: bool,
 ) -> AssignmentType {
     let mut assignments = assignments
@@ -72,10 +66,11 @@ pub fn determine_assignment_type(
                 .iter()
                 .filter(|assignment| assignment.is_active_at(current_time))
                 .filter(|assignment| {
-                    assignment
-                        .resource_references
-                        .iter()
-                        .any(|ref_| ref_.matches(resource))
+                    if let Some(filter) = &assignment.resource_filter {
+                        filter.matches(resource)
+                    } else {
+                        true
+                    }
                 })
                 .collect::<Vec<_>>()
         })
@@ -83,7 +78,7 @@ pub fn determine_assignment_type(
 
     if assignments.len() > 1 {
         warn!(
-            "Found {} active assignments for resource {:?}",
+            "Found {} active assignments for resource {:?}, selecting last one",
             assignments.len(),
             resource,
         );
@@ -166,6 +161,15 @@ pub async fn select_namespaces(
 }
 
 pub async fn reconcile_policy_resources(client: Client, policy: &SchedulePolicy) -> Result<()> {
+    if policy.spec.suspend {
+        info!(
+            "Skipping policy {}/{} because it is suspended",
+            policy.namespace().unwrap_or_default(),
+            policy.name_any(),
+        );
+        return Ok(());
+    }
+
     let namespaces = select_namespaces(client.clone(), &policy.spec.namespace_selector).await?;
     info!(
         "Selected {} namespaces using selector {:?}",
@@ -187,7 +191,7 @@ pub async fn reconcile_policy_resources(client: Client, policy: &SchedulePolicy)
             let assignment_type = determine_assignment_type(
                 &ref_,
                 policy_spec.assignments.as_ref(),
-                &current_utc_time,
+                &current_time,
                 schedule_state,
             );
             let desired_state = match assignment_type {
@@ -378,15 +382,5 @@ mod tests {
             let desired_state = super::determine_schedule_state(&schedule, &now).unwrap();
             assert_eq!(desired_state, expected_desired_state, "now: {}", now);
         }
-    }
-
-    #[test]
-    fn converts_to_local_time() {
-        let now = chrono::DateTime::parse_from_rfc3339("2023-09-01T00:00:00Z").unwrap();
-        let now = super::convert_to_local_time(&now, Some(&"Europe/Kyiv".to_string())).unwrap();
-        assert_eq!(
-            now,
-            chrono::NaiveDateTime::parse_from_str("2023-09-01T03:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()
-        );
     }
 }

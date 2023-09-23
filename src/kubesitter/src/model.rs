@@ -7,6 +7,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+const TIME_PATTERN: &str = r"^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$";
+const DATE_TIME_PATTERN: &str = r"^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d$";
+const DATE_TIME_FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
 pub static POLICY_FINALIZER: &str = "schedulepolicies.api.profisealabs.com";
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
@@ -102,18 +105,35 @@ pub struct ResourceReference {
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub enum ResourceFilter {
+    MatchResources(Vec<ResourceReference>),
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Assignment {
     #[serde(rename = "type")]
     pub ty: AssignmentType,
-    pub from: Option<chrono::DateTime<chrono::Utc>>,
-    pub to: Option<chrono::DateTime<chrono::Utc>>,
-    pub resource_references: Vec<ResourceReference>,
+    #[schemars(regex = "DATE_TIME_PATTERN")]
+    #[serde(deserialize_with = "safe_date_time::deserialize")]
+    pub from: Option<chrono::NaiveDateTime>,
+    #[schemars(regex = "DATE_TIME_PATTERN")]
+    #[serde(deserialize_with = "safe_date_time::deserialize")]
+    pub to: Option<chrono::NaiveDateTime>,
+    pub resource_filter: Option<ResourceFilter>,
+    #[deprecated(
+        since = "0.0.8",
+        note = "Use `resourceFilter` instead. This field will be removed in the next version."
+    )]
+    pub resource_references: Option<Vec<ResourceReference>>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkTime {
+    #[schemars(regex = "TIME_PATTERN")]
     pub start: chrono::NaiveTime,
+    #[schemars(regex = "TIME_PATTERN")]
     pub stop: chrono::NaiveTime,
     pub days: Vec<chrono::Weekday>,
 }
@@ -153,7 +173,7 @@ pub struct SchedulePolicyStatus {
 }
 
 impl Assignment {
-    pub fn is_active_at(&self, timestamp: &chrono::DateTime<chrono::Utc>) -> bool {
+    pub fn is_active_at(&self, timestamp: &chrono::NaiveDateTime) -> bool {
         let from_condition = match &self.from {
             Some(from_time) => timestamp >= from_time,
             None => true,
@@ -261,6 +281,61 @@ fn convert_to_work_times(periods: &Vec<bool>) -> Result<Vec<WorkTime>, Error> {
     Ok(work_times)
 }
 
+fn parse_fixed_offset(offset: &str) -> Option<chrono::FixedOffset> {
+    if offset.eq_ignore_ascii_case("Z")
+        || offset.eq_ignore_ascii_case("UTC")
+        || offset.eq_ignore_ascii_case("GMT")
+    {
+        return chrono::FixedOffset::east_opt(0);
+    }
+    let offset = if offset.starts_with("UTC") || offset.starts_with("GMT") {
+        &offset[3..]
+    } else {
+        offset
+    };
+
+    // Extract the signless part of the offset
+    let is_negative = offset.starts_with('-');
+    let offset = if is_negative || offset.starts_with('+') {
+        &offset[1..]
+    } else {
+        offset
+    };
+
+    // Split the signless offset into hours and minutes
+    let mut iter = offset.split(':');
+    let hours: i32 = iter.next()?.parse().ok()?;
+    let minutes: i32 = iter.next().unwrap_or("0").parse().ok()?;
+
+    // Convert the parsed hours and minutes into seconds
+    let mut total_seconds = hours * 3600 + minutes * 60;
+    if is_negative {
+        total_seconds = -total_seconds;
+    }
+
+    chrono::FixedOffset::east_opt(total_seconds)
+}
+
+pub fn convert_to_local_time<Tz: chrono::TimeZone>(
+    time: &chrono::DateTime<Tz>,
+    tz: Option<&String>,
+) -> Result<chrono::NaiveDateTime, Error> {
+    if let Some(tz) = tz {
+        match tz.parse::<chrono_tz::Tz>() {
+            Ok(tz) => Ok(time.with_timezone(&tz).naive_local()),
+            Err(err) => {
+                if let Some(offset) = parse_fixed_offset(tz) {
+                    Ok(time.with_timezone(&offset).naive_local())
+                } else {
+                    Err(Error::InvalidParameters(err.into()))
+                }
+            }
+        }
+    } else {
+        Ok(time.naive_utc())
+    }
+}
+
 impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
     type Error = Error;
 
@@ -269,6 +344,7 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
         let schedule = Schedule::WorkTimes(work_times);
         let mut assignments = Vec::new();
         let mut namespace_names = Vec::new();
+        let time_zone = Some(policy.timezone.clone());
 
         for resource in &policy.resources {
             let Some(name) = resource.identification.name() else { continue };
@@ -288,19 +364,25 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
                     }
                 } else {
                     continue;
-                    // ResourceReference {
-                    //     api_version: "".into(),
-                    //     kind: resource.ty.clone(),
-                    //     name: name.to_string(),
-                    //     namespace: None,
-                    // }
+                };
+
+                let from = if let Some(pause_from) = resource.pause_from {
+                    Some(convert_to_local_time(&pause_from, time_zone.as_ref())?)
+                } else {
+                    None
+                };
+                let to = if let Some(pause_to) = resource.pause_to {
+                    Some(convert_to_local_time(&pause_to, time_zone.as_ref())?)
+                } else {
+                    None
                 };
 
                 let assignment = Assignment {
                     ty: AssignmentType::Work,
-                    from: resource.pause_from,
-                    to: resource.pause_to,
-                    resource_references: vec![resource_ref],
+                    from,
+                    to,
+                    resource_filter: Some(ResourceFilter::MatchResources(vec![resource_ref])),
+                    resource_references: None,
                 };
                 assignments.push(assignment);
             }
@@ -309,12 +391,35 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
         let spec = SchedulePolicySpec {
             title: policy.name.clone(),
             suspend: policy.disabled,
-            time_zone: Some(policy.timezone.clone()),
+            time_zone,
             namespace_selector: NamespaceSelector::MatchNames(namespace_names),
             schedule,
             assignments: Some(assignments),
         };
         Ok(spec)
+    }
+}
+
+
+mod safe_date_time {
+    use serde::{self, Deserialize, Deserializer};
+
+    use super::DATE_TIME_FORMAT;
+
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<Option<chrono::NaiveDateTime>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: Option<String> = Option::deserialize(deserializer)?;
+        if let Some(s) = s {
+            let (d, _) = chrono::NaiveDateTime::parse_and_remainder(&s, DATE_TIME_FORMAT)
+                .map_err(serde::de::Error::custom)?;
+            Ok(Some(d))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -380,6 +485,31 @@ mod tests {
         assert_eq!(
             selector.values,
             Some(vec!["value1".to_string(), "value2".to_string()])
+        );
+    }
+
+    #[test]
+    fn converts_to_local_time() {
+        let now = chrono::DateTime::parse_from_rfc3339("2023-09-01T00:00:00Z").unwrap();
+        assert_eq!(
+            super::convert_to_local_time(&now, None).unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-09-01T00:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()
+        );
+        assert_eq!(
+            super::convert_to_local_time(&now, Some(&"Europe/Kyiv".to_string())).unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-09-01T03:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()
+        );
+        assert_eq!(
+            super::convert_to_local_time(&now, Some(&"Z".to_string())).unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-09-01T00:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()
+        );
+        assert_eq!(
+            super::convert_to_local_time(&now, Some(&"+03:00".to_string())).unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-09-01T03:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()
+        );
+        assert_eq!(
+            super::convert_to_local_time(&now, Some(&"-2".to_string())).unwrap(),
+            chrono::NaiveDateTime::parse_from_str("2023-08-31T22:00:00", "%Y-%m-%dT%H:%M:%S").unwrap()
         );
     }
 }

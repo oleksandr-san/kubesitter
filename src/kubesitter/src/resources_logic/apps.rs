@@ -228,6 +228,7 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub(super) fn generate_daemon_set_patch(resource: &DaemonSet, desired_state: bool) -> Option<Patch<Value>> {
     let api_version = DaemonSet::api_version(&());
     let kind = DaemonSet::kind(&());
