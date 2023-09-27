@@ -55,25 +55,6 @@ spec:
                             type: object
                           type: array
                       type: object
-                    resourceReferences:
-                      items:
-                        properties:
-                          apiVersion:
-                            default: v1
-                            type: string
-                          kind:
-                            default: Namespace
-                            type: string
-                          name:
-                            type: string
-                          namespace:
-                            nullable: true
-                            type: string
-                        required:
-                        - name
-                        type: object
-                      nullable: true
-                      type: array
                     to:
                       format: partial-date-time
                       nullable: true

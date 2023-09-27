@@ -1,6 +1,7 @@
 use super::{NODE_SELECTOR_ANNOTATION, REPLICAS_ANNOTATION};
 
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
+use k8s_openapi::api::core::v1::ReplicationController;
 use kube::{
     api::{Patch, ResourceExt},
     Resource,
@@ -164,6 +165,73 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
         );
         return None;
     }
+
+    if desired_state {
+        let Some(original_replicas) = resource.annotations().get(REPLICAS_ANNOTATION) else {
+            warn!(
+                "Skipping {} {}/{} because it does not have the {} annotation",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+                REPLICAS_ANNOTATION,
+            );
+            return None;
+        };
+        let Ok(original_replicas) = original_replicas.parse::<i32>() else {
+            warn!(
+                "Skipping {} {}/{} because the {} annotation is not an integer",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+                REPLICAS_ANNOTATION,
+            );
+            return None;
+        };
+
+        let patch: Patch<Value> = Patch::Apply(json!({
+            "apiVersion": api_version,
+            "kind": kind,
+            "metadata": {
+                "annotations": {
+                    // REPLICAS_ANNOTATION: null,
+                },
+            },
+            "spec": {
+                "replicas": original_replicas,
+            }
+        }));
+        Some(patch)
+    } else {
+        let current_replicas = resource.spec.as_ref()?.replicas?;
+        if current_replicas == 0 {
+            info!(
+                "Skipping {} {}/{} because it is already scaled to 0",
+                kind,
+                resource.name_any(),
+                resource.namespace().unwrap_or_default(),
+            );
+            return None;
+        }
+
+        let patch: Patch<Value> = Patch::Apply(json!({
+            "apiVersion": api_version,
+            "kind": kind,
+            "metadata": {
+                "annotations": {
+                    REPLICAS_ANNOTATION: current_replicas.to_string(),
+                },
+            },
+            "spec": {
+                "replicas": 0,
+            }
+        }));
+        Some(patch)
+    }
+}
+
+pub(super) fn generate_replication_controller_patch(resource: &ReplicationController, desired_state: bool) -> Option<Patch<Value>> {
+    let api_version = ReplicationController::api_version(&());
+    let kind = ReplicationController::kind(&());
 
     if desired_state {
         let Some(original_replicas) = resource.annotations().get(REPLICAS_ANNOTATION) else {

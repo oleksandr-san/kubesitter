@@ -1,6 +1,9 @@
 use super::{
     apps::{
-        generate_daemon_set_patch, generate_deployment_patch, generate_replica_set_patch,
+        generate_daemon_set_patch,
+        generate_deployment_patch,
+        generate_replica_set_patch,
+        generate_replication_controller_patch,
         generate_stateful_set_patch,
     },
     batch::generate_cron_job_patch,
@@ -16,7 +19,7 @@ use chrono::Datelike;
 use itertools::Itertools;
 use k8s_openapi::{
     api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet},
-    api::batch::v1::CronJob,
+    api::{batch::v1::CronJob, core::v1::ReplicationController},
     api::core::v1::Namespace,
 };
 use kube::core::object::HasSpec;
@@ -215,11 +218,17 @@ pub async fn reconcile_namespace(client: Client, ns: String, desired_state: bool
     let replica_set: Api<ReplicaSet> = Api::namespaced(client.clone(), &ns);
     let daemon_set: Api<DaemonSet> = Api::namespaced(client.clone(), &ns);
     let cron_job: Api<CronJob> = Api::namespaced(client.clone(), &ns);
+    let replica_controller: Api<ReplicationController> = Api::namespaced(client.clone(), &ns);
 
     let _ = tokio::join!(
         reconcile_namespaced_resources(deployment, desired_state, generate_deployment_patch),
         reconcile_namespaced_resources(stateful_set, desired_state, generate_stateful_set_patch),
         reconcile_namespaced_resources(replica_set, desired_state, generate_replica_set_patch),
+        reconcile_namespaced_resources(
+            replica_controller,
+            desired_state,
+            generate_replication_controller_patch
+        ),
         reconcile_namespaced_resources(cron_job, desired_state, generate_cron_job_patch),
         reconcile_namespaced_resources(daemon_set, desired_state, generate_daemon_set_patch),
     );

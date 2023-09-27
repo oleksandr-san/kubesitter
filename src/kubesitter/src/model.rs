@@ -123,11 +123,6 @@ pub struct Assignment {
     #[serde(deserialize_with = "safe_date_time::deserialize")]
     pub to: Option<chrono::NaiveDateTime>,
     pub resource_filter: Option<ResourceFilter>,
-    #[deprecated(
-        since = "0.0.8",
-        note = "Use `resourceFilter` instead. This field will be removed in the next version."
-    )]
-    pub resource_references: Option<Vec<ResourceReference>>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
@@ -384,7 +379,6 @@ impl TryFrom<&CloudsitterPolicy> for SchedulePolicySpec {
                     from,
                     to,
                     resource_filter: Some(ResourceFilter::MatchResources(vec![resource_ref])),
-                    resource_references: None,
                 };
                 assignments.push(assignment);
             }
