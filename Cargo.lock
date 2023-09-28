@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "kubesitter"
-version = "0.0.8"
+version = "0.0.11"
 dependencies = [
  "anyhow",
  "assert-json-diff",

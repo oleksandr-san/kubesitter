@@ -13,8 +13,18 @@ use tracing::{info, warn};
 pub(super) fn generate_cron_job_patch(resource: &CronJob, desired_state: bool) -> Option<Patch<Value>> {
     let api_version = CronJob::api_version(&());
     let kind = CronJob::kind(&());
+    let is_suspended = resource.spec.as_ref()?.suspend.unwrap_or_default();
 
     if desired_state {
+        if !is_suspended {
+            info!(
+                "Skipping {} {}/{} because it is already running",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+            );
+            return None;
+        }
         if resource.annotations().get(SUSPENDED_ANNOTATION).is_none() {
             warn!(
                 "Skipping {} {}/{} because it does not have the {} annotation",
@@ -40,7 +50,6 @@ pub(super) fn generate_cron_job_patch(resource: &CronJob, desired_state: bool) -
         }));
         Some(patch)
     } else {
-        let is_suspended = resource.spec.as_ref()?.suspend?;
         if is_suspended {
             info!(
                 "Skipping {} {}/{} because it is already suspended",

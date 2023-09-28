@@ -19,16 +19,17 @@ static DEAMONSET_SLEEPING_NODE_SELECTOR: Lazy<BTreeMap<String, String>> = Lazy::
     m
 });
 
-pub(super) fn generate_deployment_patch(deploy: &Deployment, desired_state: bool) -> Option<Patch<Value>> {
+pub(super) fn generate_deployment_patch(resource: &Deployment, desired_state: bool) -> Option<Patch<Value>> {
     let api_version = Deployment::api_version(&());
     let kind = Deployment::kind(&());
-
+    
+    let current_replicas = resource.spec.as_ref()?.replicas?;
     if desired_state {
-        let Some(original_replicas) = deploy.annotations().get(REPLICAS_ANNOTATION) else {
+        let Some(original_replicas) = resource.annotations().get(REPLICAS_ANNOTATION) else {
             warn!(
                 "Skipping deployment {} in namespace {} because it does not have the {} annotation",
-                deploy.name_any(),
-                deploy.namespace().unwrap(),
+                resource.name_any(),
+                resource.namespace().unwrap(),
                 REPLICAS_ANNOTATION,
             );
             return None;
@@ -36,33 +37,37 @@ pub(super) fn generate_deployment_patch(deploy: &Deployment, desired_state: bool
         let Ok(original_replicas) = original_replicas.parse::<i32>() else {
             warn!(
                 "Skipping deployment {} in namespace {} because the {} annotation is not an integer",
-                deploy.name_any(),
-                deploy.namespace().unwrap(),
+                resource.name_any(),
+                resource.namespace().unwrap(),
                 REPLICAS_ANNOTATION,
             );
             return None;
         };
+        if original_replicas == current_replicas {
+            info!(
+                "Skipping {} {}/{} because it is already scaled to {}",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+                original_replicas,
+            );
+            return None;
+        }
 
         let patch: Patch<Value> = Patch::Apply(json!({
             "apiVersion": api_version,
             "kind": kind,
-            "metadata": {
-                "annotations": {
-                    // REPLICAS_ANNOTATION: null,
-                },
-            },
             "spec": {
                 "replicas": original_replicas,
             }
         }));
         Some(patch)
     } else {
-        let current_replicas = deploy.spec.as_ref()?.replicas?;
         if current_replicas == 0 {
             info!(
                 "Skipping deployment {} in namespace {} because it is already scaled to 0",
-                deploy.name_any(),
-                deploy.namespace().unwrap(),
+                resource.name_any(),
+                resource.namespace().unwrap(),
             );
             return None;
         }
@@ -89,7 +94,8 @@ pub(super) fn generate_stateful_set_patch(
 ) -> Option<Patch<Value>> {
     let api_version = StatefulSet::api_version(&());
     let kind = StatefulSet::kind(&());
-
+    
+    let current_replicas = resource.spec.as_ref()?.replicas?;
     if desired_state {
         let Some(original_replicas) = resource.annotations().get(REPLICAS_ANNOTATION) else {
             warn!(
@@ -111,22 +117,26 @@ pub(super) fn generate_stateful_set_patch(
             );
             return None;
         };
+        if original_replicas == current_replicas {
+            info!(
+                "Skipping {} {}/{} because it is already scaled to {}",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+                original_replicas,
+            );
+            return None;
+        }
 
         let patch: Patch<Value> = Patch::Apply(json!({
             "apiVersion": api_version,
             "kind": kind,
-            "metadata": {
-                "annotations": {
-                    // REPLICAS_ANNOTATION: null,
-                },
-            },
             "spec": {
                 "replicas": original_replicas,
             }
         }));
         Some(patch)
     } else {
-        let current_replicas = resource.spec.as_ref()?.replicas?;
         if current_replicas == 0 {
             info!(
                 "Skipping {} {}/{} because it is already scaled to 0",
@@ -165,7 +175,8 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
         );
         return None;
     }
-
+    
+    let current_replicas = resource.spec.as_ref()?.replicas?;
     if desired_state {
         let Some(original_replicas) = resource.annotations().get(REPLICAS_ANNOTATION) else {
             warn!(
@@ -187,22 +198,26 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
             );
             return None;
         };
+        if original_replicas == current_replicas {
+            info!(
+                "Skipping {} {}/{} because it is already scaled to {}",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+                original_replicas,
+            );
+            return None;
+        }
 
         let patch: Patch<Value> = Patch::Apply(json!({
             "apiVersion": api_version,
             "kind": kind,
-            "metadata": {
-                "annotations": {
-                    // REPLICAS_ANNOTATION: null,
-                },
-            },
             "spec": {
                 "replicas": original_replicas,
             }
         }));
         Some(patch)
     } else {
-        let current_replicas = resource.spec.as_ref()?.replicas?;
         if current_replicas == 0 {
             info!(
                 "Skipping {} {}/{} because it is already scaled to 0",
@@ -232,7 +247,8 @@ pub(super) fn generate_replica_set_patch(resource: &ReplicaSet, desired_state: b
 pub(super) fn generate_replication_controller_patch(resource: &ReplicationController, desired_state: bool) -> Option<Patch<Value>> {
     let api_version = ReplicationController::api_version(&());
     let kind = ReplicationController::kind(&());
-
+    
+    let current_replicas = resource.spec.as_ref()?.replicas?;
     if desired_state {
         let Some(original_replicas) = resource.annotations().get(REPLICAS_ANNOTATION) else {
             warn!(
@@ -254,22 +270,26 @@ pub(super) fn generate_replication_controller_patch(resource: &ReplicationContro
             );
             return None;
         };
+        if original_replicas == current_replicas {
+            info!(
+                "Skipping {} {}/{} because it is already scaled to {}",
+                kind,
+                resource.namespace().unwrap_or_default(),
+                resource.name_any(),
+                original_replicas,
+            );
+            return None;
+        }
 
         let patch: Patch<Value> = Patch::Apply(json!({
             "apiVersion": api_version,
             "kind": kind,
-            "metadata": {
-                "annotations": {
-                    // REPLICAS_ANNOTATION: null,
-                },
-            },
             "spec": {
                 "replicas": original_replicas,
             }
         }));
         Some(patch)
     } else {
-        let current_replicas = resource.spec.as_ref()?.replicas?;
         if current_replicas == 0 {
             info!(
                 "Skipping {} {}/{} because it is already scaled to 0",
@@ -366,12 +386,6 @@ pub(super) fn generate_daemon_set_patch(resource: &DaemonSet, desired_state: boo
         let patch: Patch<Value> = Patch::Apply(json!({
             "apiVersion": api_version,
             "kind": kind,
-            "metadata": {
-                "annotations": {
-                    // This can only be used with strategic merge patch
-                    // NODE_SELECTOR_ANNOTATION: node_selector,
-                },
-            },
             "spec": {
                 "template": {
                     "spec": {
