@@ -8,7 +8,7 @@ metadata:
   labels:
     app: uniskai-agent
     app.kubernetes.io/name: uniskai-agent
-    app.kubernetes.io/version: "0.0.11"
+    app.kubernetes.io/version: "0.0.12"
   namespace: uniskai
 automountServiceAccountToken: true
 ---
@@ -63,7 +63,7 @@ metadata:
   labels:
     app: uniskai-agent
     app.kubernetes.io/name: uniskai-agent
-    app.kubernetes.io/version: "0.0.11"
+    app.kubernetes.io/version: "0.0.12"
 spec:
   type: ClusterIP
   ports:
@@ -83,7 +83,7 @@ metadata:
   labels:
     app: uniskai-agent
     app.kubernetes.io/name: uniskai-agent
-    app.kubernetes.io/version: "0.0.11"
+    app.kubernetes.io/version: "0.0.12"
   annotations:
     cloudsitter.uniskai.com/skip: "true"
 spec:
@@ -169,7 +169,7 @@ spec:
           - name: tmp
             mountPath: /tmp/route
       - name: uniskai-agent
-        image: uniskaidevoa.azurecr.io/uniskai-agent:0.0.11
+        image: uniskaidevoa.azurecr.io/uniskai-agent:0.0.12
         imagePullPolicy: IfNotPresent
         securityContext:
           {}

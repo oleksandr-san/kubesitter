@@ -24,9 +24,14 @@ pub enum RequirementOperator {
     DoesNotExist,
 }
 
-impl ToString for RequirementOperator {
-    fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap()
+impl RequirementOperator {
+    fn as_str(&self) -> &str {
+        match self {
+            RequirementOperator::In => "in",
+            RequirementOperator::NotIn => "notin",
+            RequirementOperator::Exists => "exists",
+            RequirementOperator::DoesNotExist => "doesnotexist",
+        }
     }
 }
 
@@ -40,13 +45,19 @@ pub struct LabelSelectorRequirement {
 impl LabelSelectorRequirement {
     pub fn to_label_selector(&self) -> String {
         let mut selector = String::new();
-        selector.push_str(&self.key);
-        selector.push(' ');
-        selector.push_str(&self.operator.to_string().to_ascii_lowercase());
 
         match self.operator {
-            RequirementOperator::Exists | RequirementOperator::DoesNotExist => {}
-            _ => {
+            RequirementOperator::Exists => {
+                selector.push_str(&self.key);
+            },
+            RequirementOperator::DoesNotExist => {
+                selector.push_str("!");
+                selector.push_str(&self.key);
+            },
+            RequirementOperator::In | RequirementOperator::NotIn => {
+                selector.push_str(&self.key);
+                selector.push(' ');
+                selector.push_str(self.operator.as_str());
                 if let Some(values) = &self.values {
                     selector.push_str(" (");
                     selector.push_str(&values.join(","));
