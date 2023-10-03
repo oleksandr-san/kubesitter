@@ -1,6 +1,6 @@
 [package]
 name = "uniskai-sdk"
-version = "0.0.1"
+version = "0.0.15"
 authors = ["Oleksandr <oleksandr.an@profisealabs.com>"]
 edition = "2021"
 license = "Apache-2.0"
