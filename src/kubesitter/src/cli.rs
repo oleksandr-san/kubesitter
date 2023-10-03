@@ -16,7 +16,8 @@ async fn main() {
         let env_id = args.next().expect("No environment ID provided");
         let api_url = args.next().expect("No API URL provided");
 
-        let client = UniskaiClient::new(api_key, api_url, env_id);
+        let client = UniskaiClient::try_new(api_key, api_url, env_id)
+            .expect("Failed to create Uniskai client");
         let policies = client.list_cloudsitter_policies().await.unwrap();
         for policy in policies {
             println!("Policy: {:?}", policy);
@@ -27,7 +28,8 @@ async fn main() {
         let api_url = args.next().expect("No API URL provided");
 
         let kube_client = kube::Client::try_default().await.unwrap();
-        let client = UniskaiClient::new(api_key, api_url, env_id);
+        let client = UniskaiClient::try_new(api_key, api_url, env_id)
+            .expect("Failed to create Uniskai client");
         let controller =
             uniskai::UniskaiController::new(kube_client, client, std::time::Duration::from_secs(5));
         controller.run().await.unwrap();

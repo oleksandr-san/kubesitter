@@ -29,11 +29,6 @@ pub struct CloudsitterPolicy {
     pub resources: Vec<CloudsitterResource>,
     pub disabled: bool,
     pub timezone: String,
-    pub gmt: String,
-    pub brake_reason: Option<String>,
-    pub broken: bool,
-    pub next_state: bool,
-    pub emails: Option<Vec<String>>,
 }
 
 impl UniskaiClient {

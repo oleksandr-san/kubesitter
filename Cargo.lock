@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "kubesitter"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -2129,6 +2129,7 @@ dependencies = [
  "http",
  "http-body",
  "hyper",
+ "hyper-rustls",
  "hyper-tls",
  "ipnet",
  "js-sys",
@@ -2138,11 +2139,14 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
+ "rustls",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "serde_urlencoded",
  "tokio",
  "tokio-native-tls",
+ "tokio-rustls",
  "tower-service",
  "url",
  "wasm-bindgen",

@@ -158,8 +158,20 @@ pub async fn select_namespaces(
             }
             false
         });
+    } else {
+        namespaces.items.retain(|ns| {
+            let name: String = ns.name_any();
+            if super::DEFAULT_SYSTEM_NAMESPACES.contains(&name.as_ref()) {
+                info!(
+                    "Skip system namespace {} to avoid operational issues",
+                    name,
+                );
+                false
+            } else {
+                true
+            }
+        });    
     }
-
     Ok(namespaces)
 }
 

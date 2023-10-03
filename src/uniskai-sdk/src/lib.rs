@@ -64,17 +64,19 @@ impl UniskaiClient {
         let api_key = std::env::var(API_KEY_ENV_VAR)?;
         let env_id = std::env::var(ENV_ID_ENV_VAR)?;
         let api_url = std::env::var(API_URL_ENV_VAR).unwrap_or_else(|_| DEFAULT_API_URL.to_string());
-        Ok(Self::new(api_key, api_url, env_id))
+        Ok(Self::try_new(api_key, api_url, env_id)?)
     }
 
-    pub fn new(api_key: String, api_url: String, env_id: String) -> Self {
-        Self {
+    pub fn try_new(api_key: String, api_url: String, env_id: String) -> Result<Self> {
+        Ok(Self {
             api_key,
             api_url: format!("https://{}/api", api_url),
             env_id,
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .https_only(true)
+                .build()?,
             timeout: CONNECTION_TIMEOUT,
-        }
+        })
     }
 
     pub(crate) fn base_url(&self) -> &str {
