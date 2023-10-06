@@ -5,7 +5,7 @@ use uniskai_sdk::UniskaiClient;
 
 #[tokio::main]
 async fn main() {
-    telemetry::init().await;
+    telemetry::init().await.expect("Failed to initialize telemetry");
 
     let mut args = std::env::args();
     args.next();
@@ -52,7 +52,7 @@ async fn main() {
         println!("Namespaces: {:?}", namespace_names);
 
         let client = kube::Client::try_default().await.unwrap();
-        resources_logic::reconcile_namespace(client, namespace_names[0].clone(), desired_state)
+        Box::pin(resources_logic::reconcile_namespace(client, namespace_names[0].clone(), desired_state))
             .await
             .unwrap();
     } else {

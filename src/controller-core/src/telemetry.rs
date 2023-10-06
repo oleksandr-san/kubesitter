@@ -39,14 +39,13 @@ async fn init_tracer() -> opentelemetry::sdk::trace::Tracer {
 
 /// Initialize tracing
 #[allow(clippy::unused_async)]
-pub async fn init() {
+pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Setup tracing layers
     #[cfg(feature = "telemetry")]
     let telemetry = tracing_opentelemetry::layer().with_tracer(init_tracer().await);
     let logger = tracing_subscriber::fmt::layer().compact();
     let env_filter = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
-        .unwrap();
+        .or_else(|_| EnvFilter::try_new("info"))?;
 
     // Decide on layers
     #[cfg(feature = "telemetry")]
@@ -55,7 +54,8 @@ pub async fn init() {
     let collector = Registry::default().with(logger).with(env_filter);
 
     // Initialize tracing
-    tracing::subscriber::set_global_default(collector).unwrap();
+    tracing::subscriber::set_global_default(collector)?;
+    Ok(())
 }
 
 #[cfg(test)]

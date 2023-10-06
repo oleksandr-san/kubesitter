@@ -51,7 +51,7 @@ impl LabelSelectorRequirement {
                 selector.push_str(&self.key);
             },
             RequirementOperator::DoesNotExist => {
-                selector.push_str("!");
+                selector.push('!');
                 selector.push_str(&self.key);
             },
             RequirementOperator::In | RequirementOperator::NotIn => {

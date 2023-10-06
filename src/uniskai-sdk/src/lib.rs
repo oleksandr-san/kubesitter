@@ -64,7 +64,7 @@ impl UniskaiClient {
         let api_key = std::env::var(API_KEY_ENV_VAR)?;
         let env_id = std::env::var(ENV_ID_ENV_VAR)?;
         let api_url = std::env::var(API_URL_ENV_VAR).unwrap_or_else(|_| DEFAULT_API_URL.to_string());
-        Ok(Self::try_new(api_key, api_url, env_id)?)
+        Self::try_new(api_key, api_url, env_id)
     }
 
     pub fn try_new(api_key: String, api_url: String, env_id: String) -> Result<Self> {
