@@ -11,7 +11,7 @@ The schedule is defined by a set of `WorkTime` objects. The `SchedulePolicy` obj
 Apply the CRD from [cached file](yaml/crd.yaml), or pipe it from `crdgen` to pickup schema changes:
 
 ```sh
-cargo run -p agent --bin crdgen | kubectl apply -f -
+cargo run -p kubesitter --bin crdgen | kubectl apply -f -
 ```
 
 ### Controller

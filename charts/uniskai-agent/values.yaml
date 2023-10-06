@@ -4,7 +4,7 @@ namespace: "uniskai"
 version: "" # pin a specific version
 
 image:
-  repository: uniskaidevoa.azurecr.io/uniskai-agent
+  repository: profisealabs/uniskai-agent
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []

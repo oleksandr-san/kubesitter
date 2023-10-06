@@ -17,5 +17,5 @@ spec:
   schedule:
     workTimes:
       - start: 07:00:00
-        stop: 18:00:00
+        stop: 20:00:00
         days: [Mon, Tue, Wed, Thu, Fri]
