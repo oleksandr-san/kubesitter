@@ -82,8 +82,11 @@ Deploy agent from manifest:
 kubectl apply -f https://uniskai-dev-templates.s3.eu-central-1.amazonaws.com/kubernetes-agent/versions/0.0.x/deployment.yaml
 ```
 
+## Running locally
+
 ### CRD
-Apply the CRD from [cached file](yaml/crd.yaml), or pipe it from `crdgen` to pickup schema changes:
+
+Apply the CRD from [cached file](yaml/crds.yaml), or pipe it from `crdgen` to pickup schema changes:
 
 ```sh
 cargo run -p kubesitter --bin crdgen | kubectl apply -f -
@@ -91,51 +94,24 @@ cargo run -p kubesitter --bin crdgen | kubectl apply -f -
 
 ### Controller
 
-Install the controller via `helm` by setting your preferred settings. For defaults:
-
 ```sh
-helm template charts/uniskai-agent | kubectl apply -f -
+UNISKAI_API_KEY="<UNISKAI_API_KEY>" UNISKAI_ENV_ID="<ENV_ID>" cargo r -p agent
 ```
-
-### Metrics
-
-Metrics is available on `/metrics` and a `ServiceMonitor` is configurable from the chart:
-
-```sh
-helm template charts/uniskai-agent --set serviceMonitor.enabled=true | kubectl apply -f -
-```
-
-## Running
-
-### Locally
-
-```sh
-cargo run
-```
-
-### In-cluster
-For prebuilt, edit the [chart values](./charts/uniskai-agent/values.yaml) or [snapshotted yaml](./yaml/deployment.yaml) and apply as you see fit (like above).
-
-To develop by building and deploying the image quickly, we recommend using [tilt](https://tilt.dev/), via `tilt up` instead.
 
 ## Usage
-In either of the run scenarios, your app is listening on port `8080`, and it will observe `Document` events.
 
-Try some of:
-
+1. Install a sample application [`emojivoto`](https://github.com/digitalocean/kubernetes-sample-apps/tree/master/emojivoto-example).
+2. Create a scheduling policy
 ```sh
-kubectl apply -f yaml/instance-lorem.yaml
-kubectl delete doc lorem
-kubectl edit doc lorem # change hidden
+kubectl apply -f yaml/example-match-labels.yaml
 ```
+3. Edit the schedule in the `yaml/example-match-labels.yaml` policy to update the desired state and apply policy.
 
-The reconciler will run and write the status object on every change. You should see results in the logs of the pod, or on the `.status` object outputs of `kubectl get doc -oyaml`.
+## Metrics
 
-### Webapp output
-The sample web server exposes some example metrics and debug information you can inspect with `curl`.
+The Kubesitter web server exposes some metrics information you can inspect with `curl`.
 
 ```sh
-$ kubectl apply -f yaml/instance-lorem.yaml
 $ curl 0.0.0.0:8080/metrics
 # HELP controller_reconcile_duration_seconds The duration of reconcile to complete in seconds
 # TYPE controller_reconcile_duration_seconds histogram
@@ -158,4 +134,7 @@ controller_reconciliation_errors_total 0
 controller_reconciliations_total 1
 ```
 
-The metrics will be scraped by prometheus if you setup a`ServiceMonitor` for it.
+The metrics will be scraped by Prometheus if you set up a `ServiceMonitor` for using the chart:
+```sh
+helm template charts/uniskai-agent --set serviceMonitor.enabled=true | kubectl apply -f -
+```
