@@ -82,22 +82,6 @@ Deploy agent from manifest:
 kubectl apply -f https://uniskai-dev-templates.s3.eu-central-1.amazonaws.com/kubernetes-agent/versions/0.0.x/deployment.yaml
 ```
 
-## Running locally
-
-### CRD
-
-Apply the CRD from [cached file](yaml/crds.yaml), or pipe it from `crdgen` to pickup schema changes:
-
-```sh
-cargo run -p kubesitter --bin crdgen | kubectl apply -f -
-```
-
-### Controller
-
-```sh
-UNISKAI_API_KEY="<UNISKAI_API_KEY>" UNISKAI_ENV_ID="<ENV_ID>" cargo r -p agent
-```
-
 ## Usage
 
 1. Install a sample application [`emojivoto`](https://github.com/digitalocean/kubernetes-sample-apps/tree/master/emojivoto-example).
@@ -137,4 +121,20 @@ controller_reconciliations_total 1
 The metrics will be scraped by Prometheus if you set up a `ServiceMonitor` for using the chart:
 ```sh
 helm template charts/uniskai-agent --set serviceMonitor.enabled=true | kubectl apply -f -
+```
+
+## Running locally
+
+### CRD
+
+Apply the CRD from [cached file](yaml/crds.yaml), or pipe it from `crdgen` to pickup schema changes:
+
+```sh
+cargo run -p kubesitter --bin crdgen | kubectl apply -f -
+```
+
+### Controller
+
+```sh
+UNISKAI_API_KEY="<UNISKAI_API_KEY>" UNISKAI_ENV_ID="<ENV_ID>" cargo r -p agent
 ```
