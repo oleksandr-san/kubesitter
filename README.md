@@ -85,11 +85,11 @@ kubectl apply -f https://uniskai-dev-templates.s3.eu-central-1.amazonaws.com/kub
 ## Usage
 
 1. Install a sample application [`emojivoto`](https://github.com/digitalocean/kubernetes-sample-apps/tree/master/emojivoto-example).
-2. Create a scheduling policy
+2. Create a scheduling policy [`yaml/example-match-labels.yaml`](yaml/example-match-labels.yaml)
 ```sh
 kubectl apply -f yaml/example-match-labels.yaml
 ```
-3. Edit the schedule in the `yaml/example-match-labels.yaml` policy to update the desired state and apply policy.
+3. Edit the schedule in the [`yaml/example-match-labels.yaml`](yaml/example-match-labels.yaml) policy to update the desired state and apply policy.
 
 ## Metrics
 
