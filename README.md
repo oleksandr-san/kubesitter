@@ -48,8 +48,11 @@ spec:
     - type: work  # or sleep or skip
       from: "2023-09-14T00:00:00"
       to: "2023-09-14T22:59:59"
-      resourceReferences:
-        - name: emojivoto
+      resourceFilter:
+        matchResources:
+          - apiVersion: v1
+            kind: Namespace
+            name: emojivoto
 
   schedule:   
     # A set of WorkTime objects defines the schedule
