@@ -1,4 +1,3 @@
-#![allow(unused_imports, unused_variables)]
 use actix_web::{get, middleware, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use prometheus::{Encoder, TextEncoder};
 
