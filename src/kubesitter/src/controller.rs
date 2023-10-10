@@ -22,6 +22,8 @@ use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::{error, field, info, instrument, warn, Span};
 
+const CHECK_INTERVAL: Duration = Duration::from_secs(30);
+
 // Context for our reconciler
 #[derive(Clone)]
 pub struct Context {
@@ -42,7 +44,7 @@ async fn reconcile(doc: Arc<SchedulePolicy>, ctx: Arc<Context>) -> Result<Action
     let _timer = ctx.metrics.count_and_measure();
     ctx.diagnostics.write().await.last_event = Utc::now();
 
-    let ns = doc.namespace().unwrap(); // doc is namespace scoped
+    let ns = doc.namespace().expect("Namespace should be available for policies");
     let docs: Api<SchedulePolicy> = Api::namespaced(ctx.client.clone(), &ns);
 
     info!("Reconciling SchedulePolicy \"{}\" in {}", doc.name_any(), ns);
@@ -59,7 +61,7 @@ async fn reconcile(doc: Arc<SchedulePolicy>, ctx: Arc<Context>) -> Result<Action
 fn error_policy(doc: Arc<SchedulePolicy>, error: &Error, ctx: Arc<Context>) -> Action {
     warn!("reconcile failed: {:?}", error);
     ctx.metrics.reconcile_failure(&*doc, error);
-    Action::requeue(Duration::from_secs(30))
+    Action::requeue(CHECK_INTERVAL)
 }
 
 impl SchedulePolicy {
@@ -75,7 +77,7 @@ impl SchedulePolicy {
                 "Uniskai is not connected, skipping reconcile for {}",
                 self.name_any(),
             );
-            return Ok(Action::requeue(Duration::from_secs(30)));
+            return Ok(Action::requeue(CHECK_INTERVAL));
         }
 
         let client = ctx.client.clone();
@@ -116,7 +118,7 @@ impl SchedulePolicy {
             .map_err(Error::KubeError)?;
 
         // If no events were received, check back every 30s
-        Ok(Action::requeue(Duration::from_secs(30)))
+        Ok(Action::requeue(CHECK_INTERVAL))
     }
 
     // Finalizer cleanup (the object was deleted, ensure nothing is orphaned)
@@ -197,7 +199,7 @@ pub async fn run(state: State) {
     let uniskai_controller = uniskai::UniskaiController::new(
         client.clone(),
         uniskai_sdk::UniskaiClient::try_default().expect("failed to create uniskai Client"),
-        Duration::from_secs(30),
+        CHECK_INTERVAL,
     );
 
     let uniskai_connection = uniskai_controller.connection_state().clone();

@@ -3,6 +3,8 @@ use controller_core::telemetry;
 use kubesitter::{resources_logic, uniskai};
 use uniskai_sdk::UniskaiClient;
 
+const CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
 #[tokio::main]
 async fn main() {
     telemetry::init().await.expect("Failed to initialize telemetry");
@@ -31,7 +33,7 @@ async fn main() {
         let client = UniskaiClient::try_new(api_key, api_url, env_id)
             .expect("Failed to create Uniskai client");
         let controller =
-            uniskai::UniskaiController::new(kube_client, client, std::time::Duration::from_secs(5));
+            uniskai::UniskaiController::new(kube_client, client, CHECK_INTERVAL);
         controller.run().await.unwrap();
     } else if command == "kubesit" {
         let desired_state = match args.next() {
