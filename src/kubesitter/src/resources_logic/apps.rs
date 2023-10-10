@@ -29,7 +29,7 @@ pub(super) fn generate_deployment_patch(resource: &Deployment, desired_state: bo
             warn!(
                 "Skipping deployment {} in namespace {} because it does not have the {} annotation",
                 resource.name_any(),
-                resource.namespace().unwrap(),
+                resource.namespace().expect("Namespace should be available for namespaced resources"),
                 REPLICAS_ANNOTATION,
             );
             return None;
@@ -38,7 +38,7 @@ pub(super) fn generate_deployment_patch(resource: &Deployment, desired_state: bo
             warn!(
                 "Skipping deployment {} in namespace {} because the {} annotation is not an integer",
                 resource.name_any(),
-                resource.namespace().unwrap(),
+                resource.namespace().expect("Namespace should be available for namespaced resources"),
                 REPLICAS_ANNOTATION,
             );
             return None;
@@ -67,7 +67,7 @@ pub(super) fn generate_deployment_patch(resource: &Deployment, desired_state: bo
             info!(
                 "Skipping deployment {} in namespace {} because it is already scaled to 0",
                 resource.name_any(),
-                resource.namespace().unwrap(),
+                resource.namespace().expect("Namespace should be available for namespaced resources"),
             );
             return None;
         }
