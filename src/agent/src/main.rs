@@ -26,27 +26,32 @@ async fn index(c: Data<State>, _req: HttpRequest) -> impl Responder {
     HttpResponse::Ok().json(&d)
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    telemetry::init().await.expect("Failed to initialize telemetry");
+fn main() -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+    .build()
+    .unwrap();
 
-    // Initiatilize Kubernetes controller state
-    let state = State::default();
-    let controller = controller::run(state.clone());
-
-    // Start web server
-    let server = HttpServer::new(move || {
-        App::new()
-            .app_data(Data::new(state.clone()))
-            .wrap(middleware::Logger::default().exclude("/health"))
-            .service(index)
-            .service(health)
-            .service(metrics)
+    rt.block_on(async move {
+        telemetry::init().await.expect("Telemetry initialized");
+    
+        // Initiatilize Kubernetes controller state
+        let state = State::default();
+        let controller = controller::run(state.clone());
+    
+        // Start web server
+        let server = HttpServer::new(move || {
+            App::new()
+                .app_data(Data::new(state.clone()))
+                .wrap(middleware::Logger::default().exclude("/health"))
+                .service(index)
+                .service(health)
+                .service(metrics)
+        })
+        .bind("0.0.0.0:8080")?
+        .shutdown_timeout(5);
+    
+        // Both runtimes implements graceful shutdown, so poll until both are done
+        tokio::join!(controller, server.run()).1?;
+        Ok(())
     })
-    .bind("0.0.0.0:8080")?
-    .shutdown_timeout(5);
-
-    // Both runtimes implements graceful shutdown, so poll until both are done
-    tokio::join!(controller, server.run()).1?;
-    Ok(())
 }
