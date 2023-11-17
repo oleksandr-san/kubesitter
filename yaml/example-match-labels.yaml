@@ -1,0 +1,21 @@
+apiVersion: api.profisealabs.com/v1alpha
+kind: SchedulePolicy
+metadata:
+  name: match-labels-schedule-policy
+  labels:
+    purpose: example
+spec:
+  suspend: false
+  title: "A schedule policy matching labels"
+
+  namespaceSelector:
+    matchLabels:
+      project: emojivoto
+
+  timeZone: "Europe/Kyiv"
+
+  schedule:
+    workTimes:
+      - start: 07:00:00
+        stop: 20:00:00
+        days: [Mon, Tue, Wed, Thu, Fri]

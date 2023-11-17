@@ -1,0 +1,5 @@
+image:
+  repository: uniskaidevoa.azurecr.io/uniskai-agent
+  pullPolicy: Always
+  tag: "latest"
+namespace: default

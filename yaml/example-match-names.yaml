@@ -1,0 +1,21 @@
+apiVersion: api.profisealabs.com/v1alpha
+kind: SchedulePolicy
+metadata:
+  name: match-names
+  labels:
+    purpose: example
+spec:
+  suspend: false
+  title: "A schedule policy matching name by regex"
+
+  namespaceSelector:
+    matchNames:
+      - bookin.*
+
+  timeZone: "Europe/Kyiv"
+
+  schedule:
+    workTimes:
+      - start: 07:00:00
+        stop: 18:00:00
+        days: [Mon, Tue, Wed, Thu, Fri]

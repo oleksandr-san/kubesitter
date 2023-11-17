@@ -1,0 +1,48 @@
+apiVersion: api.profisealabs.com/v1alpha
+kind: SchedulePolicy
+metadata:
+  name: example
+  labels:
+    purpose: example
+spec:
+  # The policy can be suspended by setting the suspend field to true.
+  suspend: true
+  title: "An example policy"
+
+  namespaceSelector:
+    # either matchLabels, matchExpressions or matchNames can be used
+    # matchLabels:
+    #   provider: kubernetes-sample-apps
+    # matchExpressions:
+    #   - key: project
+    #     operator: in
+    #     values:
+    #       - emojivoto
+    #       - bookinfo
+    # Match namespace names using regular expressions
+    matchNames:
+      - bookin.*
+      - emojivoto
+
+  timeZone: "Europe/Kyiv"
+
+  assignments:
+    - type: work  # or sleep or skip
+      from: "2023-09-14T00:00:00"
+      to: "2023-09-14T22:59:59"
+      resourceFilter:
+        matchResources:
+          - apiVersion: v1
+            kind: Namespace
+            name: emojivoto
+
+  schedule:   
+    # A set of WorkTime objects defines the schedule
+    workTimes:
+      # Each representing a repeating running time period
+      - start: 07:00:00
+        stop: 18:00:00
+        days: [Mon, Tue, Wed, Thu, Fri]
+      - start: 08:00:00
+        stop: 09:00:00
+        days: [Sat, Sun]

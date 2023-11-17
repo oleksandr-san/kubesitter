@@ -1,0 +1,316 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: schedulepolicies.api.profisealabs.com
+spec:
+  group: api.profisealabs.com
+  names:
+    categories: []
+    kind: SchedulePolicy
+    plural: schedulepolicies
+    shortNames:
+    - schedule
+    singular: schedulepolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for SchedulePolicySpec via `CustomResource`
+        properties:
+          spec:
+            description: '`SchedulePoicy` allows to define a schedule for a set of namespaces. The schedule is defined by a set of `WorkTime` objects. The `SchedulePolicy` object is applied to namespaces that match the `NamespaceSelector`. The `SchedulePolicy` object can be suspended by setting the `suspend` field to `true`.'
+            properties:
+              assignments:
+                items:
+                  properties:
+                    from:
+                      format: partial-date-time
+                      nullable: true
+                      pattern: ^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d$
+                      type: string
+                    resourceFilter:
+                      nullable: true
+                      oneOf:
+                      - required:
+                        - matchResources
+                      properties:
+                        matchResources:
+                          items:
+                            properties:
+                              apiVersion:
+                                default: v1
+                                type: string
+                              kind:
+                                default: Namespace
+                                type: string
+                              name:
+                                type: string
+                              namespace:
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type: array
+                      type: object
+                    to:
+                      format: partial-date-time
+                      nullable: true
+                      pattern: ^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d$
+                      type: string
+                    type:
+                      enum:
+                      - skip
+                      - work
+                      - sleep
+                      type: string
+                  required:
+                  - type
+                  type: object
+                nullable: true
+                type: array
+              namespaceSelector:
+                oneOf:
+                - required:
+                  - matchNames
+                - required:
+                  - matchLabels
+                - required:
+                  - matchExpressions
+                properties:
+                  matchExpressions:
+                    description: MatchExpressions is a list of label selector requirements. The requirements are ANDed.
+                    items:
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          enum:
+                          - in
+                          - notin
+                          - exists
+                          - doesnotexist
+                          type: string
+                        values:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: MatchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                  matchNames:
+                    description: MatchNames is a list of namespace name regex patterns. The requirements are ORed.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              schedule:
+                oneOf:
+                - required:
+                  - workTimes
+                properties:
+                  workTimes:
+                    items:
+                      properties:
+                        days:
+                          items:
+                            enum:
+                            - Mon
+                            - Tue
+                            - Wed
+                            - Thu
+                            - Fri
+                            - Sat
+                            - Sun
+                            type: string
+                          type: array
+                        start:
+                          format: partial-date-time
+                          pattern: ^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$
+                          type: string
+                        stop:
+                          format: partial-date-time
+                          pattern: ^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$
+                          type: string
+                      required:
+                      - days
+                      - start
+                      - stop
+                      type: object
+                    type: array
+                type: object
+              suspend:
+                type: boolean
+              timeZone:
+                nullable: true
+                type: string
+              title:
+                type: string
+            required:
+            - namespaceSelector
+            - schedule
+            - suspend
+            - title
+            type: object
+          status:
+            description: The status object of `SchedulePolicy`
+            nullable: true
+            properties:
+              suspended:
+                type: boolean
+            required:
+            - suspended
+            type: object
+        required:
+        - spec
+        title: SchedulePolicy
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+---
+# Source: uniskai-agent/templates/rbac.yaml
+# Scoped service account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: uniskai-agent
+  labels:
+    app: uniskai-agent
+    app.kubernetes.io/name: uniskai-agent
+    app.kubernetes.io/version: "0.0.15"
+  namespace: uniskai
+automountServiceAccountToken: true
+---
+# Source: uniskai-agent/templates/rbac.yaml
+# Access for the service account
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: uniskai-agent
+rules:
+  - apiGroups: ["api.profisealabs.com"]
+    resources: ["schedulepolicies", "schedulepolicies/status"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list", "get"]
+  - apiGroups: [""]
+    resources: ["replicationcontrollers"]
+    verbs: ["list", "get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "daemonsets", "statefulsets"]
+    verbs: ["list", "get", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["list", "get", "patch"]
+---
+# Source: uniskai-agent/templates/rbac.yaml
+# Binding the role to the account
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: uniskai-agent
+subjects:
+- kind: ServiceAccount
+  namespace: uniskai
+  name: uniskai-agent
+roleRef:
+  kind: ClusterRole
+  name: uniskai-agent
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: uniskai-agent/templates/service.yaml
+# Expose the http port of the service
+apiVersion: v1
+kind: Service
+metadata:
+  name: uniskai-agent
+  namespace: uniskai
+  labels:
+    app: uniskai-agent
+    app.kubernetes.io/name: uniskai-agent
+    app.kubernetes.io/version: "0.0.15"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: uniskai-agent
+---
+# Source: uniskai-agent/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uniskai-agent
+  namespace: uniskai
+  labels:
+    app: uniskai-agent
+    app.kubernetes.io/name: uniskai-agent
+    app.kubernetes.io/version: "0.0.15"
+  annotations:
+    cloudsitter.uniskai.com/skip: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: uniskai-agent
+  template:
+    metadata:
+      labels:
+        app: uniskai-agent
+      annotations:
+        kubectl.kubernetes.io/default-container: uniskai-agent
+    spec:
+      serviceAccountName: uniskai-agent
+      securityContext:
+        {}
+      containers:
+      - name: uniskai-agent
+        image: profisealabs/uniskai-agent:0.0.x
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          {}
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 100Mi
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: RUST_LOG
+          value: info,kube=debug,controller=debug
+        - name: UNISKAI_API_URL
+          value: profisealabs.com
+        envFrom:
+          - secretRef:
+              name: uniskai-agent
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
