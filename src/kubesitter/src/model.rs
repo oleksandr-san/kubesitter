@@ -290,13 +290,10 @@ fn convert_to_work_times(periods: &Vec<bool>) -> Result<Vec<WorkTime>, Error> {
 }
 
 fn parse_fixed_offset(offset: &str) -> Option<chrono::FixedOffset> {
-    if offset.eq_ignore_ascii_case("Z")
-        || offset.eq_ignore_ascii_case("UTC")
-        || offset.eq_ignore_ascii_case("GMT")
-    {
+    if ["Z", "UTC", "GMT"].iter().any(|&s| offset.eq_ignore_ascii_case(s)) {
         return chrono::FixedOffset::east_opt(0);
     }
-    let offset = if offset.starts_with("UTC") || offset.starts_with("GMT") {
+    let offset = if ["UTC", "GMT"].iter().any(|&s| offset.starts_with(s)) {
         &offset[3..]
     } else {
         offset
