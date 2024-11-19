@@ -141,3 +141,35 @@ cargo run -p kubesitter --bin crdgen | kubectl apply -f -
 ```sh
 UNISKAI_API_KEY="<UNISKAI_API_KEY>" UNISKAI_ENV_ID="<ENV_ID>" cargo r -p agent
 ```
+
+## 🤝 Contributing
+
+### Clone the repo
+
+```bash
+git clone https://github.com/oleksandr-san/kubesitter
+cd kubesitter
+```
+
+### Build the project
+
+```bash
+cargo b
+```
+
+### Run the project
+
+```bash
+cargo run -p kubesitter --bin crdgen | kubectl apply -f -
+UNISKAI_API_KEY="<UNISKAI_API_KEY>" UNISKAI_ENV_ID="<ENV_ID>" cargo r -p agent
+```
+
+### Run the tests
+
+```bash
+cargo test
+```
+
+### Submit a pull request
+
+If you'd like to contribute, please fork the repository and open a pull request to the `main` branch.
